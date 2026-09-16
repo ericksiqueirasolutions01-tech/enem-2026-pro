@@ -366,79 +366,203 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
         {/* ================================================== */}
         {/* 3. VITRINE DE LIVROS / CAPAS DOS SIMULADOS DO MOMENTO */}
         {/* ================================================== */}
-        <section id="simulados" className="space-y-8 pt-4">
+        <section id="simulados" className="space-y-10 pt-4">
           <div className="text-center space-y-3 max-w-3xl mx-auto">
             <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-xs font-black uppercase text-cyan-400 tracking-wider">
               <Target className="w-3.5 h-3.5" />
-              <span>Simulados Oficiais das Melhores Instituições</span>
+              <span>Coleção Oficial de Preparação • ENEM 2026</span>
             </div>
             <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
               OS MELHORES SIMULADOS DO MOMENTO
             </h2>
-            <p className="text-xs sm:text-base text-slate-300 leading-relaxed">
-              Treine com simulados completos, atualizados e inspirados nas melhores instituições de preparação do país.
+            <p className="text-sm sm:text-base text-cyan-200 font-bold leading-relaxed">
+              Treine com os simulados mais relevantes, organizados em uma plataforma constantemente atualizada para o ENEM 2026.
+            </p>
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl mx-auto">
+              Treine com materiais de alto nível, gabaritos comentados, resolução passo a passo e experiência completa de preparação.
             </p>
           </div>
 
-          {/* Vitrine Visual em Formato de Capas / Livros de Estudo */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4 pt-2">
+          {/* Vitrine Visual: Capas de Livros / Apostilas Premium */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-5 pt-2">
             {simuladosDestaque.map((sim) => (
               <div
                 key={sim.id}
-                className={`relative rounded-3xl p-4.5 bg-gradient-to-b ${sim.colorFrom} ${sim.colorTo} border ${sim.borderAccent} shadow-xl hover:-translate-y-2 transition-all duration-300 flex flex-col justify-between group overflow-hidden border-l-[6px] ${sim.spineColor}`}
+                className="group relative cursor-pointer"
+                onClick={() => onNavigate('cadastro')}
               >
-                {/* Efeito de Brilho da Capa do Livro */}
-                <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-60 pointer-events-none" />
-
-                <div className="relative z-10 space-y-3">
-                  {/* Badge da Instituição */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-xl">{sim.icon}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${sim.badgeBg}`}>
-                      {sim.tag}
-                    </span>
+                {/* Livro Mockup com Efeito 3D de Lombada e Borda de Páginas */}
+                <div
+                  className={`relative h-[410px] rounded-r-2xl rounded-l-md bg-gradient-to-b ${sim.colorFrom} ${sim.colorTo} p-5 flex flex-col justify-between overflow-hidden shadow-2xl shadow-black/80 border-t border-b border-r border-white/20 border-l-[10px] ${sim.spineColor} group-hover:-translate-y-3 group-hover:shadow-2xl group-hover:shadow-cyan-500/20 group-hover:rotate-1 transition-all duration-300`}
+                >
+                  {/* Fita Marcadora / Ribbon Suspensa */}
+                  <div className="absolute -top-1 right-4 z-20 px-2 py-1 bg-gradient-to-b from-amber-400 to-amber-500 text-slate-950 font-black text-[9px] uppercase tracking-wider rounded-b-md shadow-md">
+                    OFICIAL
                   </div>
 
-                  {/* Nome do Simulado / Capa do Livro */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-white/70 block uppercase tracking-widest">
-                      ENEM 2026
-                    </span>
-                    <h3 className="text-sm font-black text-white leading-snug group-hover:text-amber-200 transition-colors">
-                      {sim.name}
-                    </h3>
-                  </div>
+                  {/* Borda Simulando Páginas de Livro à Direita */}
+                  <div className="absolute right-0 top-1 bottom-1 w-1.5 bg-gradient-to-l from-slate-200 to-slate-400 rounded-r-sm shadow-inner pointer-events-none opacity-90" />
 
-                  {/* Ficha Técnica da Apostila */}
-                  <div className="pt-2 border-t border-white/15 text-[10px] space-y-1 text-white/90">
-                    <div className="flex items-center justify-between font-bold">
-                      <span>{sim.questions}</span>
-                      <span className="text-white/70">{sim.edition}</span>
+                  {/* Vinco / Dobra de Lombada Realista */}
+                  <div className="absolute left-2.5 top-0 bottom-0 w-[1px] bg-white/25 pointer-events-none" />
+                  <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-black/40 via-transparent to-transparent pointer-events-none" />
+
+                  {/* Brilho da Capa com Acabamento Premium */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-transparent pointer-events-none opacity-70" />
+
+                  {/* Conteúdo da Capa */}
+                  <div className="relative z-10 space-y-3 pl-1">
+                    {/* Selo e Ícone */}
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-md border border-white/30 flex items-center justify-center text-xl shadow-inner">
+                        {sim.icon}
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${sim.badgeBg} border border-white/10`}>
+                        {sim.tag}
+                      </span>
                     </div>
-                    <p className="text-[10px] text-white/80 line-clamp-3 leading-relaxed">
-                      {sim.description}
-                    </p>
+
+                    {/* Identidade da Apostila */}
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold text-white/70 block uppercase tracking-widest">
+                        ENEM 2026 • CADERNO
+                      </span>
+                      <h3 className="text-sm sm:text-base font-black text-white leading-tight drop-shadow-sm group-hover:text-amber-200 transition-colors">
+                        {sim.name}
+                      </h3>
+                    </div>
+
+                    {/* Especificações do Caderno */}
+                    <div className="p-2.5 rounded-xl bg-black/25 backdrop-blur-xs border border-white/10 text-[10px] space-y-1 text-white">
+                      <div className="flex items-center justify-between font-extrabold text-amber-300">
+                        <span>{sim.questions}</span>
+                        <span className="text-white/80">{sim.edition}</span>
+                      </div>
+                      <p className="text-[10px] text-white/85 line-clamp-3 leading-relaxed">
+                        {sim.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Rodapé da Capa com Carimbo Oficial */}
+                  <div className="relative z-10 pt-3 border-t border-white/20 pl-1 flex items-center justify-between text-[10px] font-black text-white">
+                    <span className="truncate max-w-[120px]">Resolução Completa</span>
+                    <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white group-hover:text-slate-950 transition-colors">
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </span>
                   </div>
                 </div>
 
-                <div className="relative z-10 pt-4 mt-3 border-t border-white/10 flex items-center justify-between text-[11px] font-black text-white">
-                  <span>Acessar Caderno</span>
-                  <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
+                {/* Sombra de Apoio da Prateleira */}
+                <div className="w-4/5 mx-auto h-2 bg-slate-900 rounded-full blur-xs opacity-80 -mt-1" />
               </div>
             ))}
           </div>
 
-          {/* Faixa Complementar da Vitrine */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/90 border border-slate-800 text-center flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-xs sm:text-sm font-bold text-slate-200 text-center sm:text-left">
-              ⚡ <span className="text-cyan-400 font-extrabold">Acervo Completo e Padronizado</span> com gabaritos comentados, resolução passo a passo e nota TRI calculada item a item.
-            </p>
+          {/* ================================================== */}
+          {/* ACRESCENTAR NOVOS DIFERENCIAIS DA SEÇÃO (4 CARDS) */}
+          {/* ================================================== */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4">
+            {/* 1. Crie sua Redação */}
+            <div className="p-5 rounded-3xl bg-slate-900/90 border border-purple-500/30 hover:border-purple-400 transition-all space-y-2.5 shadow-lg group">
+              <div className="w-10 h-10 rounded-2xl bg-purple-500/15 text-purple-300 flex items-center justify-center text-xl font-black group-hover:scale-110 transition-transform">
+                ✍️
+              </div>
+              <h4 className="text-sm font-black text-white group-hover:text-purple-300 transition-colors">
+                CRIE SUA REDAÇÃO
+              </h4>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Pratique com temas que podem cair na redação do ENEM 2026 e receba correção automática com análise inteligente.
+              </p>
+            </div>
+
+            {/* 2. Receba Dicas Diárias */}
+            <div className="p-5 rounded-3xl bg-slate-900/90 border border-amber-500/30 hover:border-amber-400 transition-all space-y-2.5 shadow-lg group">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/15 text-amber-300 flex items-center justify-center text-xl font-black group-hover:scale-110 transition-transform">
+                💡
+              </div>
+              <h4 className="text-sm font-black text-white group-hover:text-amber-300 transition-colors">
+                RECEBA DICAS DIÁRIAS
+              </h4>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Tenha sugestões de estudo, revisão e orientação para manter sua rotina sempre ativa.
+              </p>
+            </div>
+
+            {/* 3. Plataforma Constantemente Atualizada */}
+            <div className="p-5 rounded-3xl bg-slate-900/90 border border-emerald-500/30 hover:border-emerald-400 transition-all space-y-2.5 shadow-lg group">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-300 flex items-center justify-center text-xl font-black group-hover:scale-110 transition-transform">
+                🔄
+              </div>
+              <h4 className="text-sm font-black text-white group-hover:text-emerald-300 transition-colors">
+                PLATAFORMA CONSTANTEMENTE ATUALIZADA
+              </h4>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Novos simulados, novos conteúdos e novos materiais adicionados continuamente.
+              </p>
+            </div>
+
+            {/* 4. Treinamento Completo */}
+            <div className="p-5 rounded-3xl bg-slate-900/90 border border-cyan-500/30 hover:border-cyan-400 transition-all space-y-2.5 shadow-lg group">
+              <div className="w-10 h-10 rounded-2xl bg-cyan-500/15 text-cyan-300 flex items-center justify-center text-xl font-black group-hover:scale-110 transition-transform">
+                🎯
+              </div>
+              <h4 className="text-sm font-black text-white group-hover:text-cyan-300 transition-colors">
+                TREINAMENTO COMPLETO
+              </h4>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Simulados, gabaritos, resolução, redação, questões por assunto e evolução do desempenho em um só lugar.
+              </p>
+            </div>
+          </div>
+
+          {/* Faixa de Benefícios Chave (Checklist Rápido) */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs text-slate-300 font-bold">
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400 shrink-0 stroke-[3]" />
+              <span>Crie sua redação com temas que podem cair no ENEM 2026</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400 shrink-0 stroke-[3]" />
+              <span>Receba a correção automaticamente</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400 shrink-0 stroke-[3]" />
+              <span>Receba dicas diárias de estudo</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400 shrink-0 stroke-[3]" />
+              <span>Plataforma constantemente atualizada</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400 shrink-0 stroke-[3]" />
+              <span>Simulados com gabaritos e acompanhamento de desempenho</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400 shrink-0 stroke-[3]" />
+              <span>Conteúdos organizados para facilitar sua evolução</span>
+            </div>
+          </div>
+
+          {/* Faixa Inferior Persuasiva & Botão de Ação de Alta Conversão */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-cyan-900/80 via-indigo-900/80 to-purple-900/80 border border-cyan-400/30 p-6 sm:p-8 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="space-y-2 text-center md:text-left max-w-2xl">
+              <span className="text-[11px] font-black uppercase text-amber-300 tracking-wider flex items-center justify-center md:justify-start gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                Estrutura Completa de Estudos
+              </span>
+              <p className="text-sm sm:text-base font-bold text-white leading-relaxed">
+                Tudo o que você precisa para estudar com estratégia: simulados de alto nível, gabaritos comentados, redação com temas prováveis de 2026, correção automática, dicas diárias e materiais constantemente atualizados.
+              </p>
+            </div>
+
             <button
               onClick={() => onNavigate('cadastro')}
-              className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs transition-colors shrink-0 cursor-pointer shadow-md"
+              className="shrink-0 px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black text-sm shadow-xl shadow-orange-500/25 transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-2"
             >
-              Começar a Praticar
+              <Zap className="w-4 h-4 fill-slate-950" />
+              <span>COMEÇAR A PRATICAR AGORA</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </section>
