@@ -53,119 +53,133 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
     return () => clearInterval(timer);
   }, []);
 
-  // Lista dos 7 Simulados das Melhores Instituições (Vitrine Visual)
+  // Lista dos 7 Simulados das Melhores Instituições (Vitrine Visual de Alta Performance)
   const simuladosDestaque = [
     {
       id: 'anglo',
       name: 'Simulado ENEM 2026 – Anglo Sírio-Libanês',
-      shortName: 'Anglo Sírio-Libanês',
+      institution: 'Anglo Sírio-Libanês',
       tag: 'Banca Tradicional',
-      questions: '90 Questões',
+      seal: 'OFICIAL • ENEM 2026',
+      questions: '90 Questões Inéditas',
       edition: 'Caderno 1 & 2',
       colorFrom: 'from-rose-600',
-      colorTo: 'to-red-800',
+      colorTo: 'to-red-950',
       accentColor: 'text-rose-300',
       borderAccent: 'border-rose-500/40',
-      badgeBg: 'bg-rose-500/20 text-rose-300',
-      spineColor: 'border-l-rose-400',
+      badgeBg: 'bg-rose-500/20 text-rose-200',
+      spineColor: 'border-l-rose-500',
       icon: '🏛️',
-      description: 'Enfoque em interpretação profunda de textos motivadores e ciências da saúde.',
+      differential: 'Enfoque em interpretação profunda de textos motivadores, matriz de ciências da saúde, humanidades e redação crítica.',
+      focus: 'Foco em TRI & Medicina',
     },
     {
       id: 'apeiron',
       name: 'Simulado ENEM 2026 – Apeiron',
-      shortName: 'Apeiron',
+      institution: 'Apeiron',
       tag: 'Inédito & Autoral',
-      questions: '90 Questões',
+      seal: 'EXCLUSIVO • ENEM 2026',
+      questions: '90 Questões Inéditas',
       edition: 'Edição Especial',
       colorFrom: 'from-purple-600',
-      colorTo: 'to-indigo-900',
+      colorTo: 'to-indigo-950',
       accentColor: 'text-purple-300',
       borderAccent: 'border-purple-500/40',
-      badgeBg: 'bg-purple-500/20 text-purple-300',
-      spineColor: 'border-l-purple-400',
+      badgeBg: 'bg-purple-500/20 text-purple-200',
+      spineColor: 'border-l-purple-500',
       icon: '⚡',
-      description: 'Itens inéditos elaborados para diagnosticar pontos cegos e competências da TRI.',
+      differential: 'Itens inéditos elaborados para diagnosticar pontos cegos, consistência pedagógica e competências críticas da TRI.',
+      focus: 'Diagnóstico de Pontos Cegos',
     },
     {
       id: 'bernoulli',
       name: 'Simulado ENEM 2026 – Bernoulli',
-      shortName: 'Bernoulli',
+      institution: 'Bernoulli',
       tag: 'Precisão TRI',
-      questions: '90 Questões',
+      seal: 'REFERÊNCIA NACIONAL',
+      questions: '90 Questões Inéditas',
       edition: 'Ciclo 01 Oficial',
       colorFrom: 'from-cyan-600',
-      colorTo: 'to-blue-900',
+      colorTo: 'to-blue-950',
       accentColor: 'text-cyan-300',
       borderAccent: 'border-cyan-500/40',
-      badgeBg: 'bg-cyan-500/20 text-cyan-300',
-      spineColor: 'border-l-cyan-400',
+      badgeBg: 'bg-cyan-500/20 text-cyan-200',
+      spineColor: 'border-l-cyan-500',
       icon: '📘',
-      description: 'A maior referência nacional em calibração TRI e distribuição pedagógica oficial.',
+      differential: 'A maior referência nacional em calibração TRI e distribuição pedagógica oficial, com itens fáceis, médios e difíceis balanceados.',
+      focus: 'Calibração TRI Oficial',
     },
     {
       id: 'hplus',
       name: 'Simulado ENEM 2026 – HPlus',
-      shortName: 'HPlus',
+      institution: 'HPlus',
       tag: 'Sprint Intensivo',
-      questions: '90 Questões',
+      seal: 'ALTA PERFORMANCE',
+      questions: '90 Questões Inéditas',
       edition: 'Caderno de Alta Pressão',
-      colorFrom: 'from-amber-500',
-      colorTo: 'to-yellow-800',
+      colorFrom: 'from-amber-600',
+      colorTo: 'to-yellow-950',
       accentColor: 'text-amber-300',
       borderAccent: 'border-amber-500/40',
-      badgeBg: 'bg-amber-500/20 text-amber-300',
-      spineColor: 'border-l-amber-400',
+      badgeBg: 'bg-amber-500/20 text-amber-200',
+      spineColor: 'border-l-amber-500',
       icon: '⏱️',
-      description: 'Treinamento de resistência para condicionamento de 5h com gabarito imediato.',
+      differential: 'Treinamento de resistência para condicionamento de 5h com gabarito comentado e cronômetro em tempo real de prova.',
+      focus: 'Velocidade & Resistência 5h',
     },
     {
       id: 'poliedro',
       name: 'Simulado ENEM 2026 – Poliedro',
-      shortName: 'Poliedro',
+      institution: 'Poliedro',
       tag: 'Foco Medicina',
-      questions: '90 Questões',
+      seal: 'MÁXIMO RIGOR',
+      questions: '90 Questões Inéditas',
       edition: 'Fase de Excelência',
       colorFrom: 'from-blue-700',
-      colorTo: 'to-slate-900',
+      colorTo: 'to-slate-950',
       accentColor: 'text-blue-300',
       borderAccent: 'border-blue-500/40',
-      badgeBg: 'bg-blue-500/20 text-blue-300',
-      spineColor: 'border-l-blue-400',
+      badgeBg: 'bg-blue-500/20 text-blue-200',
+      spineColor: 'border-l-blue-500',
       icon: '🔬',
-      description: 'Rigor extremo em Ciências da Natureza e Matemática para notas acima de 800+.',
+      differential: 'Rigor extremo em Ciências da Natureza e Matemática para notas acima de 800+ nos cursos mais concorridos do país.',
+      focus: 'Exatas & Natureza Avançadas',
     },
     {
       id: 'sas',
       name: 'Simulado ENEM 2026 – SAS',
-      shortName: 'SAS',
+      institution: 'SAS',
       tag: 'Diagnóstico Amplo',
-      questions: '90 Questões',
+      seal: 'MATRIZ OFICIAL',
+      questions: '90 Questões Inéditas',
       edition: 'Caderno Integrado',
       colorFrom: 'from-orange-600',
       colorTo: 'to-red-950',
       accentColor: 'text-orange-300',
       borderAccent: 'border-orange-500/40',
-      badgeBg: 'bg-orange-500/20 text-orange-300',
-      spineColor: 'border-l-orange-400',
+      badgeBg: 'bg-orange-500/20 text-orange-200',
+      spineColor: 'border-l-orange-500',
       icon: '📙',
-      description: 'Avaliação detalhada das 30 habilidades da Matriz de Referência do ENEM.',
+      differential: 'Avaliação detalhada das 30 habilidades da Matriz do ENEM, com mapeamento preciso de acertos e distratores recorrentes.',
+      focus: 'Mapeamento das 30 Habilidades',
     },
     {
       id: 'somos',
       name: 'Simulado ENEM 2026 – Somos',
-      shortName: 'Somos',
+      institution: 'Somos',
       tag: 'Interdisciplinar',
-      questions: '90 Questões',
+      seal: 'ATUALIZADO • 2026',
+      questions: '90 Questões Inéditas',
       edition: 'Volume Consolidado',
       colorFrom: 'from-emerald-600',
       colorTo: 'to-teal-950',
       accentColor: 'text-emerald-300',
       borderAccent: 'border-emerald-500/40',
-      badgeBg: 'bg-emerald-500/20 text-emerald-300',
-      spineColor: 'border-l-emerald-400',
+      badgeBg: 'bg-emerald-500/20 text-emerald-200',
+      spineColor: 'border-l-emerald-500',
       icon: '📗',
-      description: 'Integração de Humanas e Linguagens com proposta de redação temática contemporânea.',
+      differential: 'Integração de Humanas e Linguagens com proposta de redação temática contemporânea e critérios oficiais do INEP.',
+      focus: 'Redação & Atualidades',
     },
   ];
 
@@ -368,197 +382,210 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
         {/* ================================================== */}
         <section id="simulados" className="space-y-10 pt-4">
           <div className="text-center space-y-3 max-w-3xl mx-auto">
-            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-xs font-black uppercase text-cyan-400 tracking-wider">
-              <Target className="w-3.5 h-3.5" />
+            <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-xs font-black uppercase text-cyan-400 tracking-wider shadow-xs">
+              <Target className="w-4 h-4" />
               <span>Coleção Oficial de Preparação • ENEM 2026</span>
             </div>
-            <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
+            <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
               OS MELHORES SIMULADOS DO MOMENTO
             </h2>
-            <p className="text-sm sm:text-base text-cyan-200 font-bold leading-relaxed">
-              Treine com os simulados mais relevantes, organizados em uma plataforma constantemente atualizada para o ENEM 2026.
+            <p className="text-base sm:text-xl text-cyan-200 font-bold leading-relaxed">
+              Treine com simulados completos, organizados em uma plataforma constantemente atualizada para o ENEM 2026.
             </p>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl mx-auto">
-              Treine com materiais de alto nível, gabaritos comentados, resolução passo a passo e experiência completa de preparação.
+              Simulados, gabaritos, redação, correção automática e desempenho em um só lugar.
             </p>
           </div>
 
-          {/* Vitrine Visual: Capas de Livros / Apostilas Premium */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-5 pt-2">
-            {simuladosDestaque.map((sim) => (
+          {/* Grade Visual: 3 Capas por Linha no Desktop, 2 no Tablet, 1 no Mobile */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 pt-2">
+            {simuladosDestaque.map((sim, index) => (
               <div
                 key={sim.id}
-                className="group relative cursor-pointer"
+                className={`group relative cursor-pointer ${
+                  index === 6 ? 'md:col-span-2 md:max-w-md md:mx-auto lg:col-span-1 lg:col-start-2 lg:max-w-none lg:w-full' : ''
+                }`}
                 onClick={() => onNavigate('cadastro')}
               >
                 {/* Livro Mockup com Efeito 3D de Lombada e Borda de Páginas */}
                 <div
-                  className={`relative h-[410px] rounded-r-2xl rounded-l-md bg-gradient-to-b ${sim.colorFrom} ${sim.colorTo} p-5 flex flex-col justify-between overflow-hidden shadow-2xl shadow-black/80 border-t border-b border-r border-white/20 border-l-[10px] ${sim.spineColor} group-hover:-translate-y-3 group-hover:shadow-2xl group-hover:shadow-cyan-500/20 group-hover:rotate-1 transition-all duration-300`}
+                  className={`relative min-h-[480px] sm:min-h-[500px] rounded-r-3xl rounded-l-md bg-gradient-to-b ${sim.colorFrom} ${sim.colorTo} p-6 sm:p-7 flex flex-col justify-between overflow-hidden shadow-2xl shadow-black/85 border-t border-b border-r border-white/20 border-l-[14px] ${sim.spineColor} group-hover:-translate-y-3 group-hover:shadow-2xl group-hover:shadow-cyan-500/25 group-hover:rotate-1 transition-all duration-300`}
                 >
                   {/* Fita Marcadora / Ribbon Suspensa */}
-                  <div className="absolute -top-1 right-4 z-20 px-2 py-1 bg-gradient-to-b from-amber-400 to-amber-500 text-slate-950 font-black text-[9px] uppercase tracking-wider rounded-b-md shadow-md">
-                    OFICIAL
+                  <div className="absolute -top-1.5 right-6 z-20 px-3 py-1.5 bg-gradient-to-b from-amber-400 to-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-wider rounded-b-lg shadow-lg">
+                    {sim.seal}
                   </div>
 
                   {/* Borda Simulando Páginas de Livro à Direita */}
-                  <div className="absolute right-0 top-1 bottom-1 w-1.5 bg-gradient-to-l from-slate-200 to-slate-400 rounded-r-sm shadow-inner pointer-events-none opacity-90" />
+                  <div className="absolute right-0 top-2 bottom-2 w-2 bg-gradient-to-l from-slate-200 to-slate-400 rounded-r-md shadow-inner pointer-events-none opacity-90" />
 
                   {/* Vinco / Dobra de Lombada Realista */}
-                  <div className="absolute left-2.5 top-0 bottom-0 w-[1px] bg-white/25 pointer-events-none" />
-                  <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-black/40 via-transparent to-transparent pointer-events-none" />
+                  <div className="absolute left-3 top-0 bottom-0 w-[1px] bg-white/25 pointer-events-none" />
+                  <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-black/50 via-black/10 to-transparent pointer-events-none" />
 
                   {/* Brilho da Capa com Acabamento Premium */}
                   <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-transparent pointer-events-none opacity-70" />
 
                   {/* Conteúdo da Capa */}
-                  <div className="relative z-10 space-y-3 pl-1">
+                  <div className="relative z-10 space-y-4 pl-1">
                     {/* Selo e Ícone */}
                     <div className="flex items-center justify-between">
-                      <div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-md border border-white/30 flex items-center justify-center text-xl shadow-inner">
+                      <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-md border border-white/30 flex items-center justify-center text-2xl shadow-inner">
                         {sim.icon}
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${sim.badgeBg} border border-white/10`}>
-                        {sim.tag}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/20 text-white border border-white/20">
+                          ENEM 2026
+                        </span>
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${sim.badgeBg} border border-white/15`}>
+                          {sim.tag}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Identidade da Apostila */}
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-bold text-white/70 block uppercase tracking-widest">
-                        ENEM 2026 • CADERNO
+                    <div className="space-y-1 pt-1">
+                      <span className="text-[11px] font-bold text-white/70 block uppercase tracking-widest">
+                        CADERNO OFICIAL DE QUESTÕES
                       </span>
-                      <h3 className="text-sm sm:text-base font-black text-white leading-tight drop-shadow-sm group-hover:text-amber-200 transition-colors">
+                      <h3 className="text-xl sm:text-2xl font-black text-white leading-tight drop-shadow-sm group-hover:text-amber-200 transition-colors">
                         {sim.name}
                       </h3>
+                      <p className="text-xs font-black text-amber-300 uppercase tracking-wider">
+                        {sim.focus}
+                      </p>
                     </div>
 
-                    {/* Especificações do Caderno */}
-                    <div className="p-2.5 rounded-xl bg-black/25 backdrop-blur-xs border border-white/10 text-[10px] space-y-1 text-white">
-                      <div className="flex items-center justify-between font-extrabold text-amber-300">
-                        <span>{sim.questions}</span>
+                    {/* Especificações e Diferencial Completo sem Cortes */}
+                    <div className="p-4 rounded-2xl bg-black/35 backdrop-blur-xs border border-white/15 space-y-2.5">
+                      <div className="flex items-center justify-between text-xs font-black text-white">
+                        <span className="flex items-center gap-1.5 text-amber-300">
+                          <FileCheck2 className="w-4 h-4 text-emerald-400" />
+                          {sim.questions}
+                        </span>
                         <span className="text-white/80">{sim.edition}</span>
                       </div>
-                      <p className="text-[10px] text-white/85 line-clamp-3 leading-relaxed">
-                        {sim.description}
+                      <p className="text-xs sm:text-sm text-slate-100 leading-relaxed font-normal">
+                        {sim.differential}
                       </p>
                     </div>
                   </div>
 
-                  {/* Rodapé da Capa com Carimbo Oficial */}
-                  <div className="relative z-10 pt-3 border-t border-white/20 pl-1 flex items-center justify-between text-[10px] font-black text-white">
-                    <span className="truncate max-w-[120px]">Resolução Completa</span>
-                    <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white group-hover:text-slate-950 transition-colors">
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </span>
+                  {/* Botão de Acesso ao Caderno na Capa */}
+                  <div className="relative z-10 pt-4 pl-1">
+                    <button className="w-full py-3.5 px-5 rounded-xl bg-white/20 hover:bg-white text-white hover:text-slate-950 font-black text-xs sm:text-sm transition-all duration-300 flex items-center justify-center gap-2 border border-white/25 shadow-md group-hover:bg-white group-hover:text-slate-950 cursor-pointer">
+                      <span>ACESSAR CADERNO COMPLETO</span>
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
+                    </button>
                   </div>
                 </div>
 
                 {/* Sombra de Apoio da Prateleira */}
-                <div className="w-4/5 mx-auto h-2 bg-slate-900 rounded-full blur-xs opacity-80 -mt-1" />
+                <div className="w-4/5 mx-auto h-3 bg-slate-900 rounded-full blur-xs opacity-80 -mt-1" />
               </div>
             ))}
           </div>
 
           {/* ================================================== */}
-          {/* ACRESCENTAR NOVOS DIFERENCIAIS DA SEÇÃO (4 CARDS) */}
+          {/* BENEFÍCIOS COMPLEMENTARES DA SEÇÃO (4 CARDS) */}
           {/* ================================================== */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 pt-4">
             {/* 1. Crie sua Redação */}
-            <div className="p-5 rounded-3xl bg-slate-900/90 border border-purple-500/30 hover:border-purple-400 transition-all space-y-2.5 shadow-lg group">
-              <div className="w-10 h-10 rounded-2xl bg-purple-500/15 text-purple-300 flex items-center justify-center text-xl font-black group-hover:scale-110 transition-transform">
+            <div className="p-6 rounded-3xl bg-slate-900/90 border border-purple-500/30 hover:border-purple-400 transition-all space-y-3 shadow-lg group">
+              <div className="w-12 h-12 rounded-2xl bg-purple-500/15 text-purple-300 flex items-center justify-center text-2xl font-black group-hover:scale-110 transition-transform">
                 ✍️
               </div>
-              <h4 className="text-sm font-black text-white group-hover:text-purple-300 transition-colors">
+              <h4 className="text-base font-black text-white group-hover:text-purple-300 transition-colors">
                 CRIE SUA REDAÇÃO
               </h4>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                 Pratique com temas que podem cair na redação do ENEM 2026 e receba correção automática com análise inteligente.
               </p>
             </div>
 
             {/* 2. Receba Dicas Diárias */}
-            <div className="p-5 rounded-3xl bg-slate-900/90 border border-amber-500/30 hover:border-amber-400 transition-all space-y-2.5 shadow-lg group">
-              <div className="w-10 h-10 rounded-2xl bg-amber-500/15 text-amber-300 flex items-center justify-center text-xl font-black group-hover:scale-110 transition-transform">
+            <div className="p-6 rounded-3xl bg-slate-900/90 border border-amber-500/30 hover:border-amber-400 transition-all space-y-3 shadow-lg group">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-300 flex items-center justify-center text-2xl font-black group-hover:scale-110 transition-transform">
                 💡
               </div>
-              <h4 className="text-sm font-black text-white group-hover:text-amber-300 transition-colors">
+              <h4 className="text-base font-black text-white group-hover:text-amber-300 transition-colors">
                 RECEBA DICAS DIÁRIAS
               </h4>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                 Tenha sugestões de estudo, revisão e orientação para manter sua rotina sempre ativa.
               </p>
             </div>
 
             {/* 3. Plataforma Constantemente Atualizada */}
-            <div className="p-5 rounded-3xl bg-slate-900/90 border border-emerald-500/30 hover:border-emerald-400 transition-all space-y-2.5 shadow-lg group">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-300 flex items-center justify-center text-xl font-black group-hover:scale-110 transition-transform">
+            <div className="p-6 rounded-3xl bg-slate-900/90 border border-emerald-500/30 hover:border-emerald-400 transition-all space-y-3 shadow-lg group">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 text-emerald-300 flex items-center justify-center text-2xl font-black group-hover:scale-110 transition-transform">
                 🔄
               </div>
-              <h4 className="text-sm font-black text-white group-hover:text-emerald-300 transition-colors">
+              <h4 className="text-base font-black text-white group-hover:text-emerald-300 transition-colors">
                 PLATAFORMA CONSTANTEMENTE ATUALIZADA
               </h4>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                 Novos simulados, novos conteúdos e novos materiais adicionados continuamente.
               </p>
             </div>
 
             {/* 4. Treinamento Completo */}
-            <div className="p-5 rounded-3xl bg-slate-900/90 border border-cyan-500/30 hover:border-cyan-400 transition-all space-y-2.5 shadow-lg group">
-              <div className="w-10 h-10 rounded-2xl bg-cyan-500/15 text-cyan-300 flex items-center justify-center text-xl font-black group-hover:scale-110 transition-transform">
+            <div className="p-6 rounded-3xl bg-slate-900/90 border border-cyan-500/30 hover:border-cyan-400 transition-all space-y-3 shadow-lg group">
+              <div className="w-12 h-12 rounded-2xl bg-cyan-500/15 text-cyan-300 flex items-center justify-center text-2xl font-black group-hover:scale-110 transition-transform">
                 🎯
               </div>
-              <h4 className="text-sm font-black text-white group-hover:text-cyan-300 transition-colors">
+              <h4 className="text-base font-black text-white group-hover:text-cyan-300 transition-colors">
                 TREINAMENTO COMPLETO
               </h4>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                 Simulados, gabaritos, resolução, redação, questões por assunto e evolução do desempenho em um só lugar.
               </p>
             </div>
           </div>
 
           {/* Faixa de Benefícios Chave (Checklist Rápido) */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs text-slate-300 font-bold">
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-400 shrink-0 stroke-[3]" />
+          <div className="p-5 sm:p-6 rounded-3xl bg-slate-900/70 border border-slate-800 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs sm:text-sm text-slate-200 font-bold">
+            <div className="flex items-center gap-2.5">
+              <Check className="w-5 h-5 text-emerald-400 shrink-0 stroke-[3]" />
               <span>Crie sua redação com temas que podem cair no ENEM 2026</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-400 shrink-0 stroke-[3]" />
-              <span>Receba a correção automaticamente</span>
+            <div className="flex items-center gap-2.5">
+              <Check className="w-5 h-5 text-emerald-400 shrink-0 stroke-[3]" />
+              <span>Receba correção automática e análise inteligente</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-400 shrink-0 stroke-[3]" />
+            <div className="flex items-center gap-2.5">
+              <Check className="w-5 h-5 text-emerald-400 shrink-0 stroke-[3]" />
               <span>Receba dicas diárias de estudo</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-400 shrink-0 stroke-[3]" />
+            <div className="flex items-center gap-2.5">
+              <Check className="w-5 h-5 text-emerald-400 shrink-0 stroke-[3]" />
               <span>Plataforma constantemente atualizada</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-400 shrink-0 stroke-[3]" />
+            <div className="flex items-center gap-2.5">
+              <Check className="w-5 h-5 text-emerald-400 shrink-0 stroke-[3]" />
               <span>Simulados com gabaritos e acompanhamento de desempenho</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-400 shrink-0 stroke-[3]" />
+            <div className="flex items-center gap-2.5">
+              <Check className="w-5 h-5 text-emerald-400 shrink-0 stroke-[3]" />
               <span>Conteúdos organizados para facilitar sua evolução</span>
             </div>
           </div>
 
           {/* Faixa Inferior Persuasiva & Botão de Ação de Alta Conversão */}
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-cyan-900/80 via-indigo-900/80 to-purple-900/80 border border-cyan-400/30 p-6 sm:p-8 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="space-y-2 text-center md:text-left max-w-2xl">
-              <span className="text-[11px] font-black uppercase text-amber-300 tracking-wider flex items-center justify-center md:justify-start gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" />
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-cyan-900/85 via-indigo-900/85 to-purple-900/85 border border-cyan-400/30 p-6 sm:p-10 shadow-2xl flex flex-col lg:flex-row items-center justify-between gap-6">
+            <div className="space-y-2 text-center lg:text-left max-w-2xl">
+              <span className="text-xs font-black uppercase text-amber-300 tracking-wider flex items-center justify-center lg:justify-start gap-2">
+                <Sparkles className="w-4 h-4" />
                 Estrutura Completa de Estudos
               </span>
-              <p className="text-sm sm:text-base font-bold text-white leading-relaxed">
-                Tudo o que você precisa para estudar com estratégia: simulados de alto nível, gabaritos comentados, redação com temas prováveis de 2026, correção automática, dicas diárias e materiais constantemente atualizados.
+              <p className="text-base sm:text-lg font-bold text-white leading-relaxed">
+                Acervo completo e constantemente atualizado com simulados de alto nível, gabaritos comentados, resolução passo a passo, temas de redação e acompanhamento da sua evolução.
               </p>
             </div>
 
             <button
               onClick={() => onNavigate('cadastro')}
-              className="shrink-0 px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black text-sm shadow-xl shadow-orange-500/25 transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-2"
+              className="shrink-0 px-9 py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black text-sm sm:text-base shadow-xl shadow-orange-500/30 transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-2"
             >
               <Zap className="w-4 h-4 fill-slate-950" />
               <span>COMEÇAR A PRATICAR AGORA</span>
