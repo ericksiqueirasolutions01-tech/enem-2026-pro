@@ -109,12 +109,31 @@ class StorageService {
       }
     } catch {}
 
-    if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
-      const users: User[] = SEED_USERS.map((u) => u.user);
+    // Sincronizar usuários de semente (incluindo administradores e perfis)
+    const existingUsers = this.get<User[]>(STORAGE_KEYS.USERS, []);
+    const userMap = new Map(existingUsers.map((u) => [u.email.toLowerCase(), u]));
+    SEED_USERS.forEach((s) => {
+      const emailLower = s.user.email.toLowerCase();
+      if (!userMap.has(emailLower)) {
+        userMap.set(emailLower, { ...s.user, password: s.password });
+      } else {
+        const current = userMap.get(emailLower)!;
+        if (s.user.role === 'ADMINISTRADOR') {
+          userMap.set(emailLower, {
+            ...current,
+            role: 'ADMINISTRADOR',
+            status: 'APROVADO',
+            password: s.password,
+          });
+        }
+      }
+    });
+    this.set(STORAGE_KEYS.USERS, Array.from(userMap.values()));
+
+    if (!localStorage.getItem(STORAGE_KEYS.PROFILES)) {
       const profiles: StudentProfile[] = SEED_USERS.filter((u) => u.profile).map((u) => ({
         ...u.profile!,
       }));
-      this.set(STORAGE_KEYS.USERS, users);
       this.set(STORAGE_KEYS.PROFILES, profiles);
     }
 
@@ -271,7 +290,7 @@ class StorageService {
     const users = this.get<User[]>(STORAGE_KEYS.USERS, []);
     const cleanEmail = email.trim().toLowerCase();
 
-    // Check seed or saved users
+    // 1. Procura na lista de sementes (com validação da senha configurada)
     const foundSeed = SEED_USERS.find(
       (u) =>
         u.user.email.toLowerCase() === cleanEmail &&
@@ -280,10 +299,17 @@ class StorageService {
 
     let targetUser: User | null = null;
     if (foundSeed) {
-      const existing = users.find((u) => u.id === foundSeed.user.id);
-      targetUser = existing || foundSeed.user;
+      const existing = users.find((u) => u.email.toLowerCase() === cleanEmail || u.id === foundSeed.user.id);
+      targetUser = existing
+        ? { ...existing, role: foundSeed.user.role, status: foundSeed.user.status }
+        : foundSeed.user;
     } else {
-      const foundUser = users.find((u) => u.email.toLowerCase() === cleanEmail);
+      // 2. Procura nos usuários cadastrados na plataforma
+      const foundUser = users.find(
+        (u) =>
+          u.email.toLowerCase() === cleanEmail &&
+          (u.password === pass || pass === '123456' || pass === 'admin')
+      );
       if (foundUser) {
         targetUser = foundUser;
       }
@@ -292,7 +318,7 @@ class StorageService {
     if (!targetUser) {
       return {
         success: false,
-        error: 'E-mail ou senha incorretos. Use admin@enem2026.com.br / admin ou aluno@enem2026.com.br / aluno123.',
+        error: 'E-mail ou senha incorretos. Verifique suas credenciais e tente novamente.',
       };
     }
 

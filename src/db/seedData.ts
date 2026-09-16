@@ -3,6 +3,21 @@ import { Question, Simulado, EssayTopic, Achievement, User, StudentProfile } fro
 export const SEED_USERS: { user: User; profile?: StudentProfile; password: string }[] = [
   {
     user: {
+      id: 'usr-admin-erick',
+      name: 'Erick Siqueira',
+      email: 'ericksiqueiraa@gmail.com',
+      role: 'ADMINISTRADOR',
+      status: 'APROVADO',
+      city: 'São Paulo',
+      state: 'SP',
+      phone: '(11) 99999-9999',
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
+      createdAt: '2026-01-01T08:00:00.000Z',
+    },
+    password: 'M@nu2901',
+  },
+  {
+    user: {
       id: 'usr-admin-01',
       name: 'Administrador do Sistema',
       email: 'admin@enem2026.com.br',
