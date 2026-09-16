@@ -75,7 +75,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const handleLogout = () => {
     db.setCurrentUser(null);
-    onNavigate('login');
+    onNavigate('landing');
   };
 
   const handleSwitchToAdmin = () => {

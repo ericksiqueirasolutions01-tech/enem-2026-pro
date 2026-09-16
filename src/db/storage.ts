@@ -210,11 +210,8 @@ class StorageService {
       this.set(STORAGE_KEYS.PDF_DRAFTS, [initialDraft]);
     }
 
-    // Default current user is the demo student
-    if (!this.getCurrentUser()) {
-      const demoUser = SEED_USERS[0].user;
-      this.setCurrentUser(demoUser, true);
-    }
+    // Visitantes entram deslogados por padrão para sempre ver a Landing Page institucional primeiro
+    // Nenhum usuário é auto-logado na inicialização.
 
     // Inicializar plano de estudo default se vazio
     const tasks = this.get<StudyPlanTask[]>(STORAGE_KEYS.STUDY_TASKS, []);
