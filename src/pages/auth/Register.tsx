@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { UserTargetObjective } from '../../types';
 
+import { authRepository } from '../../services/repositories/authRepository';
+
 interface RegisterProps {
   onNavigate: (route: string) => void;
   onRegisterSuccess: () => void;
@@ -20,19 +22,19 @@ export const Register: React.FC<RegisterProps> = ({ onNavigate, onRegisterSucces
   const [formData, setFormData] = useState({
     name: '',
     document: '',
-    birthDate: '2008-05-15',
+    birthDate: '',
     email: '',
     phone: '',
     password: '',
     confirmPassword: '',
-    city: 'São Paulo',
-    state: 'SP',
+    city: '',
+    state: '',
     objective: 'ENEM' as UserTargetObjective,
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -41,8 +43,8 @@ export const Register: React.FC<RegisterProps> = ({ onNavigate, onRegisterSucces
       return;
     }
 
-    if (formData.password.length < 4) {
-      setError('A senha deve conter no mínimo 4 caracteres.');
+    if (formData.password.length < 6) {
+      setError('A senha deve conter no mínimo 6 caracteres para sua segurança.');
       return;
     }
 
@@ -52,13 +54,11 @@ export const Register: React.FC<RegisterProps> = ({ onNavigate, onRegisterSucces
     }
 
     setLoading(true);
-    setTimeout(() => {
-      const res = db.registerStudent({
+    try {
+      const res = await authRepository.signUp({
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        document: formData.document,
-        birthDate: formData.birthDate,
         phone: formData.phone,
         city: formData.city,
         state: formData.state,
@@ -66,13 +66,16 @@ export const Register: React.FC<RegisterProps> = ({ onNavigate, onRegisterSucces
       });
 
       setLoading(false);
-      if (res.success && res.user) {
+      if (res.success) {
         onRegisterSuccess();
         onNavigate('pending-approval');
       } else {
         setError(res.error || 'Erro ao realizar cadastro.');
       }
-    }, 400);
+    } catch (err: any) {
+      setLoading(false);
+      setError(err?.message || 'Falha na conexão ao realizar cadastro.');
+    }
   };
 
   return (

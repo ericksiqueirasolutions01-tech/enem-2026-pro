@@ -9,6 +9,8 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 
+import { authRepository } from '../../services/repositories/authRepository';
+
 interface LoginProps {
   onNavigate: (route: string) => void;
   onLoginSuccess: () => void;
@@ -21,13 +23,13 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, onLoginSuccess }) => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    setTimeout(() => {
-      const res = db.login(email, password);
+    try {
+      const res = await authRepository.signIn(email, password);
       setLoading(false);
 
       if (res.user && (res.status === 'PENDENTE_APROVACAO' || res.status === 'REPROVADO')) {
@@ -45,7 +47,10 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, onLoginSuccess }) => {
       } else {
         setError(res.error || 'Credenciais inválidas.');
       }
-    }, 400);
+    } catch (err: any) {
+      setLoading(false);
+      setError(err?.message || 'Erro inesperado ao realizar login.');
+    }
   };
 
   return (

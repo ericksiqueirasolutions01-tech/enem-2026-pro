@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../db/storage';
+import { adminRepository } from '../../services/repositories/adminRepository';
 import {
   User,
   Question,
@@ -90,6 +91,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
   const [syncSuccessMsg, setSyncSuccessMsg] = useState(false);
   const [pendingFilter, setPendingFilter] = useState<'PENDENTES' | 'APROVADOS' | 'REPROVADOS' | 'TODOS'>('PENDENTES');
   const [adminToast, setAdminToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    adminRepository.getUsers().then((res) => {
+      if (isMounted && res.length > 0) setUsers(res);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Modais de Criação / Edição
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
@@ -927,11 +938,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
                       <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
                         {u.status !== 'APROVADO' && (
                           <button
-                            onClick={() => {
-                              db.approveUser(u.id);
-                              setUsers(db.getUsers());
-                              setAdminToast(`Usuário "${u.name}" foi APROVADO com sucesso!`);
-                              setTimeout(() => setAdminToast(null), 3500);
+                            onClick={async () => {
+                              const res = await adminRepository.setUserStatus(u.id, 'APROVADO');
+                              if (res.success) {
+                                const updated = await adminRepository.getUsers();
+                                setUsers(updated);
+                                setAdminToast(`Usuário "${u.name}" foi APROVADO com sucesso!`);
+                                setTimeout(() => setAdminToast(null), 3500);
+                              } else {
+                                setAdminToast(res.error || 'Erro ao aprovar usuário.');
+                                setTimeout(() => setAdminToast(null), 3500);
+                              }
                             }}
                             className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                           >
@@ -942,16 +959,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
 
                         {u.status !== 'REPROVADO' && (
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               const reason = window.prompt(
                                 `Motivo da reprovação do usuário ${u.name} (opcional):`,
                                 'Dados incompletos ou não aprovados pela coordenação.'
                               );
                               if (reason !== null) {
-                                db.reproveUser(u.id, reason);
-                                setUsers(db.getUsers());
-                                setAdminToast(`Usuário "${u.name}" foi REPROVADO.`);
-                                setTimeout(() => setAdminToast(null), 3500);
+                                const res = await adminRepository.setUserStatus(u.id, 'REPROVADO', reason);
+                                if (res.success) {
+                                  const updated = await adminRepository.getUsers();
+                                  setUsers(updated);
+                                  setAdminToast(`Usuário "${u.name}" foi REPROVADO.`);
+                                  setTimeout(() => setAdminToast(null), 3500);
+                                } else {
+                                  setAdminToast(res.error || 'Erro ao reprovar usuário.');
+                                  setTimeout(() => setAdminToast(null), 3500);
+                                }
                               }
                             }}
                             className="py-2 px-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-300 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-rose-200 dark:border-rose-800"

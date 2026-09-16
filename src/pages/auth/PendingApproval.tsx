@@ -14,6 +14,8 @@ import {
 import { db } from '../../db/storage';
 import { User } from '../../types';
 
+import { authRepository } from '../../services/repositories/authRepository';
+
 interface PendingApprovalProps {
   onNavigate: (route: string) => void;
   currentUser?: User | null;
@@ -39,21 +41,19 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
     });
   }, [onNavigate]);
 
-  const handleCheckStatus = () => {
+  const handleCheckStatus = async () => {
     setIsChecking(true);
     setCheckedMessage(null);
 
-    setTimeout(() => {
+    try {
+      const freshUser = await authRepository.getCurrentSessionUser();
       setIsChecking(false);
-      const user = db.getCurrentUser();
-      if (!user) {
+
+      if (!freshUser) {
         onNavigate('login');
         return;
       }
 
-      // Check fresh from db
-      const allUsers = db.getUsers();
-      const freshUser = allUsers.find((u) => u.id === user.id) || user;
       db.setCurrentUser(freshUser, true);
       setCurrentUser(freshUser);
 
@@ -65,11 +65,14 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
       } else {
         setCheckedMessage('Seu cadastro ainda está em análise pela coordenação.');
       }
-    }, 600);
+    } catch {
+      setIsChecking(false);
+      setCheckedMessage('Erro ao verificar status. Tente novamente em instantes.');
+    }
   };
 
-  const handleLogout = () => {
-    db.setCurrentUser(null);
+  const handleLogout = async () => {
+    await authRepository.signOut();
     onNavigate('login');
   };
 
