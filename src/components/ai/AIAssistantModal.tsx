@@ -62,7 +62,7 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleQuickAction = (actionType: 'EXPLICAR' | 'RESUMO' | 'PLANO' | 'DIFICULDADES' | 'REVISAO') => {
+  const handleQuickAction = (actionType: 'EXPLICAR' | 'RESUMO' | 'PLANO' | 'DUVIDAS' | 'REVISAO') => {
     let userPrompt = '';
     let aiResponse = '';
     let actionBtn: ChatMessage['action'] | undefined = undefined;
@@ -81,16 +81,15 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
         break;
 
       case 'PLANO':
-        userPrompt = '📅 Montar um plano de estudos eficiente e adaptativo para a minha rotina.';
+        userPrompt = '📅 Criar um plano de estudo eficiente e adaptativo para o ENEM 2026.';
         aiResponse = `### 🎯 Seu Cronograma Recomendado de Alta Performance (ENEM 2026):\n\n- **Segunda**: Matemática (Álgebra) + Língua Portuguesa (Interpretação e Gramática) — *20 questões*\n- **Terça**: Biologia (Ecologia/Citologia) + História (Brasil República) — *20 questões*\n- **Quarta**: Redação (1 texto completo com rascunho de 30 linhas) + Química (Geral e Físico-Química)\n- **Quinta**: Física (Mecânica e Eletricidade) + Geografia (Geopolítica e Brasil)\n- **Sexta**: Filosofia/Sociologia + Literatura / Língua Estrangeira (Inglês ou Espanhol)\n- **Sábado**: Simulado completo (Alternando Dia 1 e Dia 2) + Correção do Caderno de Erros\n- **Domingo**: Descanso ativo e alinhamento das metas da próxima semana.`;
         actionBtn = { label: 'Abrir Plano de Estudos', route: 'plano' };
         break;
 
-      case 'DIFICULDADES':
-        userPrompt = '🎯 Analisar minhas maiores dificuldades e pontos cegos atuais.';
-        const mistakesCount = mistakes.filter(m => !m.isMastered).length;
-        aiResponse = `### 📊 Diagnóstico Pedagógico do seu Desempenho:\n\n- **Caderno de Erros**: Você possui **${mistakesCount} questões pendentes** de revisão.\n- **Gargalo mais comum**: Natureza (Física e Química Orgânica) e Matemática (Geometria Espacial) costumam ser os maiores divisores de águas para notas acima de 750+.\n- **Recomendação prioritária**: Não avance para novos conteúdos antes de reescrever a resolução das questões que você errou sem consultar o gabarito!`;
-        actionBtn = { label: 'Revisar Caderno de Erros', route: 'erros' };
+      case 'DUVIDAS':
+        userPrompt = '❓ Tirar dúvidas sobre matérias, conceitos ou estratégias do ENEM.';
+        aiResponse = `### 💬 Como posso te ajudar com sua dúvida agora?\n\nVocê pode digitar qualquer conceito que esteja difícil (ex: *Circuitos Elétricos, Estequiometria, Funções Trigonométricas, Revolução Francesa, Crase*) ou colar o texto de um enunciado.\n\nSou treinado para simplificar tópicos complexos com analogias didáticas e apontar como o ENEM cobra esse assunto na prática!`;
+        actionBtn = { label: 'Ver Caderno de Erros', route: 'erros' };
         break;
 
       case 'REVISAO':
@@ -181,12 +180,12 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-black text-base sm:text-lg">Assistente de Estudos com IA</h3>
+                <h3 className="font-black text-base sm:text-lg">🤖 Tutor IA — ENEM 2026</h3>
                 <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-black uppercase tracking-wider">
-                  ENEM 2026 & ETEC
+                  Inteligência Pedagógica
                 </span>
               </div>
-              <p className="text-xs text-white/80">Tutor pedagógico inteligente disponível 24h</p>
+              <p className="text-xs text-white/80">Tutor pedagógico inteligente focado na sua aprovação 24h</p>
             </div>
           </div>
 
@@ -202,7 +201,7 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
         {/* 5 Quick Actions Bar */}
         <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2 overflow-x-auto no-scrollbar">
           <span className="text-[10px] font-black uppercase text-slate-400 shrink-0 pl-1">
-            Comandos Rápidos:
+            Ferramentas Rápidas:
           </span>
 
           <button
@@ -226,15 +225,15 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
             className="shrink-0 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-700 dark:text-slate-200 hover:text-emerald-600 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <Calendar className="w-3.5 h-3.5 text-emerald-600" />
-            <span>3. Montar Plano</span>
+            <span>3. Criar Plano de Estudo</span>
           </button>
 
           <button
-            onClick={() => handleQuickAction('DIFICULDADES')}
+            onClick={() => handleQuickAction('DUVIDAS')}
             className="shrink-0 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-200 hover:text-amber-600 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-            <span>4. Identificar Dificuldades</span>
+            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+            <span>4. Tirar Dúvidas</span>
           </button>
 
           <button

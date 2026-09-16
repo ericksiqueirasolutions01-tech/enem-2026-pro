@@ -36,7 +36,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const outrosVestibulares = db.getSimuladosByCategory('OUTROS_VESTIBULARES');
   const isAdmin = currentUser?.role === 'ADMINISTRADOR';
 
-  const menuItems = [
+  interface SidebarNavItem {
+    id: string;
+    label: string;
+    icon: React.ElementType;
+    badge?: string;
+    badgeColor?: string;
+    highlight?: boolean;
+  }
+
+  const estudosItems: SidebarNavItem[] = [
     { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
     {
       id: 'materias',
@@ -44,13 +53,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: BookOpen,
       badge: `${DRIVE_MATERIALS.length}`,
       badgeColor: 'bg-brand-600',
-    },
-    {
-      id: 'etec',
-      label: 'Vestibulinho ETEC',
-      icon: GraduationCap,
-      badge: 'NOVO',
-      badgeColor: 'bg-emerald-600',
     },
     { id: 'plano', label: 'Plano de Estudos', icon: CalendarDays },
     { id: 'questoes', label: 'Banco de Questões', icon: HelpCircle },
@@ -60,14 +62,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: FileCheck2,
       badge: `${enemSimulados.length}`,
     },
-    {
-      id: 'vestibulares',
-      label: 'Outros Vestibulares',
-      icon: GraduationCap,
-      badge: `${outrosVestibulares.length}`,
-      badgeColor: 'bg-teal-600',
-    },
     { id: 'redacao', label: 'Redação', icon: PenTool, highlight: true },
+  ];
+
+  const desempenhoItems: SidebarNavItem[] = [
     { id: 'desempenho', label: 'Meu Desempenho', icon: TrendingUp },
     {
       id: 'erros',
@@ -81,87 +79,104 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'perfil', label: 'Perfil', icon: UserCircle },
   ];
 
+  const outrosItems: SidebarNavItem[] = [
+    {
+      id: 'etec',
+      label: 'Vestibulinho ETEC',
+      icon: GraduationCap,
+      badge: 'NOVO',
+      badgeColor: 'bg-emerald-600',
+    },
+    {
+      id: 'vestibulares',
+      label: 'Outros Vestibulares',
+      icon: GraduationCap,
+      badge: `${outrosVestibulares.length}`,
+      badgeColor: 'bg-teal-600',
+    },
+  ];
+
+  const renderNavGroup = (title: string, items: SidebarNavItem[]) => (
+    <div className="space-y-1">
+      <div className="px-3 pt-3 pb-1 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center justify-between">
+        <span>{title}</span>
+      </div>
+      {items.map((item) => {
+        const Icon = item.icon;
+        const isActive = currentRoute === item.id || (item.id === 'materias' && currentRoute === 'biblioteca');
+
+        return (
+          <button
+            key={item.id}
+            onClick={() => onNavigate(item.id)}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-bold text-xs transition-all cursor-pointer ${
+              isActive
+                ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-md shadow-brand-500/25 font-black scale-[1.01]'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Icon
+                className={`w-4 h-4 shrink-0 ${
+                  isActive
+                    ? 'text-white'
+                    : item.highlight
+                    ? 'text-purple-600 dark:text-purple-400'
+                    : 'text-slate-400 dark:text-slate-500'
+                }`}
+              />
+              <span>{item.label}</span>
+            </div>
+
+            {item.badge && (
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                  isActive
+                    ? 'bg-white/20 text-white'
+                    : item.badgeColor
+                    ? `${item.badgeColor} text-white`
+                    : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                {item.badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <aside className="hidden md:flex flex-col w-64 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 min-h-[calc(100vh-4rem)] p-4 select-none">
-      {/* Navigation list */}
-      <div className="space-y-1 flex-1">
-        <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
-          Navegação Principal
-        </div>
+    <aside className="hidden md:flex flex-col w-64 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 min-h-[calc(100vh-5rem)] p-3 select-none">
+      <div className="space-y-3 flex-1">
+        {/* 1. GRUPO: ESTUDOS */}
+        {renderNavGroup('ESTUDOS', estudosItems)}
 
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentRoute === item.id || (item.id === 'materias' && currentRoute === 'biblioteca');
+        {/* 2. GRUPO: DESEMPENHO */}
+        {renderNavGroup('DESEMPENHO', desempenhoItems)}
 
-          return (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id)}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                isActive
-                  ? 'bg-brand-600 text-white shadow-sm shadow-brand-500/30 font-black'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Icon
-                  className={`w-4 h-4 shrink-0 ${
-                    isActive
-                      ? 'text-white'
-                      : item.highlight
-                      ? 'text-purple-600 dark:text-purple-400'
-                      : 'text-slate-500 dark:text-slate-400'
-                  }`}
-                />
-                <span>{item.label}</span>
-              </div>
+        {/* 3. GRUPO: OUTROS */}
+        {renderNavGroup('OUTROS', outrosItems)}
 
-              {item.badge && (
-                <span
-                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
-                    isActive
-                      ? 'bg-white/20 text-white'
-                      : item.badgeColor
-                      ? `${item.badgeColor} text-white`
-                      : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  {item.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-
-        {/* Administrador Menu Section */}
+        {/* 4. GRUPO: ADMINISTRAÇÃO (Apenas Administrador) */}
         {isAdmin && (
-          <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-800">
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
             <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-indigo-500 dark:text-indigo-400 flex items-center gap-1.5">
               <Shield className="w-3.5 h-3.5" />
-              Administração
+              <span>ADMINISTRAÇÃO</span>
             </div>
             <div className="space-y-1">
               <button
                 onClick={() => onNavigate('admin')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl font-bold text-xs transition-all cursor-pointer ${
                   currentRoute === 'admin'
-                    ? 'bg-indigo-600 text-white shadow-sm font-black'
+                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md font-black'
                     : 'text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40'
                 }`}
               >
                 <Shield className="w-4 h-4 shrink-0" />
                 <span>Painel Admin Geral</span>
-              </button>
-
-              <button
-                onClick={() => onNavigate('materias')}
-                className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl font-bold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <BookOpen className="w-4 h-4 text-brand-600" />
-                  <span>Ver Área de Matérias</span>
-                </div>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-bold">15</span>
               </button>
             </div>
           </div>

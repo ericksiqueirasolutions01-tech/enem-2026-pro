@@ -48,14 +48,14 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         onOpenSearch={() => setSearchOpen(true)}
       />
 
-      <div className="flex-1 flex max-w-7xl w-full mx-auto">
+      <div className="flex-1 flex w-full">
         <Sidebar
           currentRoute={currentRoute}
           onNavigate={onNavigate}
           currentUser={currentUser}
         />
 
-        <main className="flex-1 p-3 sm:p-6 lg:p-8 pb-24 md:pb-8 max-w-full overflow-x-hidden">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 md:pb-10 w-full min-w-0 overflow-x-hidden">
           {children}
         </main>
       </div>
@@ -65,19 +65,19 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         onNavigate={onNavigate}
       />
 
-      {/* Floating AI Tutor Button */}
+      {/* Floating AI Tutor Button (Seção 15: 🤖 Tutor IA) */}
       <div className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-40 animate-in fade-in">
         <button
           onClick={() => setAiModalOpen(true)}
-          className="group flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-full shadow-xl shadow-brand-500/25 transition-all transform hover:scale-105 active:scale-95 cursor-pointer border border-white/20"
-          title="Tutor Inteligente de Estudos com IA"
+          className="group flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-full shadow-2xl shadow-brand-500/30 transition-all transform hover:scale-105 active:scale-95 cursor-pointer border border-white/20 backdrop-blur-md"
+          title="Tutor IA ENEM — Explicar questões, resumos, planos e dúvidas"
         >
-          <div className="relative">
-            <Bot className="w-5 h-5 text-white animate-bounce" />
-            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400" />
+          <div className="relative flex items-center justify-center">
+            <span className="text-lg">🤖</span>
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-slate-900 animate-pulse" />
           </div>
-          <span className="text-xs font-black tracking-wide hidden sm:inline">
-            Tutor IA ENEM
+          <span className="text-xs font-black tracking-wider uppercase">
+            Tutor IA
           </span>
         </button>
       </div>

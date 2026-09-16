@@ -95,36 +95,48 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-3">
-        {/* Logo & Brand */}
-        <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors w-full">
+      <div className="w-full px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+        {/* 1. Logo & Identidade Visual Reestruturada */}
+        <div className="flex items-center gap-4 shrink-0">
           <button
             onClick={() => onNavigate(currentUser?.role === 'ADMINISTRADOR' ? 'admin' : 'dashboard')}
-            className="flex items-center gap-2.5 text-left group cursor-pointer focus:outline-none"
+            className="flex items-center gap-3 text-left group cursor-pointer focus:outline-none"
           >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-brand-500/20 group-hover:scale-105 transition-transform">
-              <GraduationCap className="w-6 h-6" />
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-brand-500/25 group-hover:scale-105 group-hover:shadow-brand-500/40 transition-all border border-white/20 shrink-0">
+              <GraduationCap className="w-7 h-7" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-black text-base sm:text-lg tracking-tight bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
-                  ENEM 2026
+              <div className="flex items-center gap-2">
+                <span className="font-black text-xl sm:text-2xl tracking-tight text-slate-900 dark:text-white">
+                  ENEM <span className="text-brand-600 dark:text-brand-400">2026</span>
                 </span>
-                <span className="px-1.5 py-0.5 text-[10px] font-black uppercase rounded-md bg-brand-500 text-white tracking-wider">
+                <span className="px-2 py-0.5 text-[10px] font-black uppercase rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white tracking-widest shadow-xs">
                   PRO
                 </span>
               </div>
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 -mt-1 hidden sm:block">
-                Plataforma de Alta Performance
-              </p>
+              <div className="space-y-0">
+                <p className="text-xs font-extrabold text-slate-700 dark:text-slate-300 tracking-tight">
+                  Plataforma de Aprovação Inteligente
+                </p>
+                <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 hidden md:block">
+                  "Estude, evolua e conquiste sua vaga."
+                </p>
+              </div>
             </div>
           </button>
 
-          {/* Countdown Badge */}
-          <div className="hidden xl:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-50 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-800/70 text-amber-800 dark:text-amber-300 text-xs font-bold shrink-0 whitespace-nowrap shadow-xs">
-            <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span>Faltam <strong className="font-black text-amber-900 dark:text-amber-200">{diffDays} dias</strong> para o ENEM 2026</span>
+          {/* 11. Contador do ENEM Reestruturado */}
+          <div className="hidden 2xl:flex items-center gap-2.5 px-3.5 py-1.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 shadow-xs shrink-0 whitespace-nowrap">
+            <div className="w-7 h-7 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
+              <Calendar className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="leading-tight">
+              <span className="text-[9px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider block">Contagem Oficial</span>
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                Faltam <strong className="font-black text-amber-600 dark:text-amber-400 text-sm font-mono">{diffDays} dias</strong> para o ENEM 2026
+              </span>
+            </div>
           </div>
         </div>
 
