@@ -68,19 +68,6 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
     }, 600);
   };
 
-  const handleSimulateApproval = () => {
-    if (currentUser) {
-      db.approveUser(currentUser.id);
-      const allUsers = db.getUsers();
-      const approved = allUsers.find((u) => u.id === currentUser.id);
-      if (approved) {
-        db.setCurrentUser(approved, true);
-        setCurrentUser(approved);
-        onNavigate('dashboard');
-      }
-    }
-  };
-
   const handleLogout = () => {
     db.setCurrentUser(null);
     onNavigate('login');
@@ -179,15 +166,6 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
               <span>{isChecking ? 'Verificando...' : 'Verificar se fui Aprovado'}</span>
             </button>
           )}
-
-          {/* Test shortcut button for immediate review */}
-          <button
-            onClick={handleSimulateApproval}
-            className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Aprovar Imediatamente (Atalho para Testes)</span>
-          </button>
 
           <button
             onClick={handleLogout}

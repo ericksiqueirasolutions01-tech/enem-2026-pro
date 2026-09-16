@@ -1,6 +1,6 @@
 import { Question, Simulado, EssayTopic, Achievement, User, StudentProfile } from '../types';
 
-export const SEED_USERS: { user: User; profile?: StudentProfile; password: string }[] = [
+export const SEED_USERS: { user: User; profile?: StudentProfile }[] = [
   {
     user: {
       id: 'usr-admin-erick',
@@ -14,22 +14,6 @@ export const SEED_USERS: { user: User; profile?: StudentProfile; password: strin
       avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
       createdAt: '2026-01-01T08:00:00.000Z',
     },
-    password: 'M@nu2901',
-  },
-  {
-    user: {
-      id: 'usr-admin-01',
-      name: 'Administrador do Sistema',
-      email: 'admin@enem2026.com.br',
-      role: 'ADMINISTRADOR',
-      status: 'APROVADO',
-      city: 'São Paulo',
-      state: 'SP',
-      phone: '(11) 99999-0000',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=250',
-      createdAt: '2026-01-01T08:00:00.000Z',
-    },
-    password: 'admin',
   },
   {
     user: {
@@ -67,7 +51,6 @@ export const SEED_USERS: { user: User; profile?: StudentProfile; password: strin
       xp: 2850,
       level: 6,
     },
-    password: 'aluno123',
   },
   {
     user: {
@@ -84,7 +67,6 @@ export const SEED_USERS: { user: User; profile?: StudentProfile; password: strin
       birthDate: '2007-06-18',
       createdAt: '2026-09-15T14:30:00.000Z',
     },
-    password: 'senha123',
   },
   {
     user: {
@@ -101,7 +83,6 @@ export const SEED_USERS: { user: User; profile?: StudentProfile; password: strin
       birthDate: '2008-02-22',
       createdAt: '2026-09-15T16:10:00.000Z',
     },
-    password: 'senha123',
   },
 ];
 

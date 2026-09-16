@@ -115,7 +115,7 @@ class StorageService {
     SEED_USERS.forEach((s) => {
       const emailLower = s.user.email.toLowerCase();
       if (!userMap.has(emailLower)) {
-        userMap.set(emailLower, { ...s.user, password: s.password });
+        userMap.set(emailLower, { ...s.user });
       } else {
         const current = userMap.get(emailLower)!;
         if (s.user.role === 'ADMINISTRADOR') {
@@ -123,7 +123,6 @@ class StorageService {
             ...current,
             role: 'ADMINISTRADOR',
             status: 'APROVADO',
-            password: s.password,
           });
         }
       }
@@ -290,30 +289,13 @@ class StorageService {
     const users = this.get<User[]>(STORAGE_KEYS.USERS, []);
     const cleanEmail = email.trim().toLowerCase();
 
-    // 1. Procura na lista de sementes (com validação da senha configurada)
-    const foundSeed = SEED_USERS.find(
+    // Procura no cadastro do usuário com conferência estrita de senha (sem bypass)
+    const targetUser = users.find(
       (u) =>
-        u.user.email.toLowerCase() === cleanEmail &&
-        (u.password === pass || pass === '123456' || pass === 'admin')
+        u.email.toLowerCase() === cleanEmail &&
+        Boolean(u.password) &&
+        u.password === pass
     );
-
-    let targetUser: User | null = null;
-    if (foundSeed) {
-      const existing = users.find((u) => u.email.toLowerCase() === cleanEmail || u.id === foundSeed.user.id);
-      targetUser = existing
-        ? { ...existing, role: foundSeed.user.role, status: foundSeed.user.status }
-        : foundSeed.user;
-    } else {
-      // 2. Procura nos usuários cadastrados na plataforma
-      const foundUser = users.find(
-        (u) =>
-          u.email.toLowerCase() === cleanEmail &&
-          (u.password === pass || pass === '123456' || pass === 'admin')
-      );
-      if (foundUser) {
-        targetUser = foundUser;
-      }
-    }
 
     if (!targetUser) {
       return {
@@ -386,8 +368,8 @@ class StorageService {
       document: data.document?.trim(),
       birthDate: data.birthDate,
       phone: data.phone?.trim(),
-      city: data.city || 'São Paulo',
-      state: data.state || 'SP',
+      city: data.city?.trim() || undefined,
+      state: data.state?.trim() || undefined,
       objective: data.objective || 'ENEM',
       avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${cleanEmail}`,
       createdAt: new Date().toISOString(),
@@ -397,8 +379,8 @@ class StorageService {
       id: `prof-${Date.now()}`,
       userId: newUser.id,
       birthDate: data.birthDate,
-      state: data.state || 'SP',
-      city: data.city || 'São Paulo',
+      state: data.state?.trim() || undefined,
+      city: data.city?.trim() || undefined,
       school: data.school,
       targetCourse: data.targetCourse || (data.objective === 'ETEC' ? 'Técnico em Desenvolvimento' : 'Medicina / Geral'),
       targetUniversity: data.targetUniversity || (data.objective === 'ETEC' ? 'ETEC / CPS' : 'ENEM / SISU'),
@@ -407,7 +389,7 @@ class StorageService {
       studyDaysPerWeek: 5,
       difficultSubjects: [],
       examDate: '2026-11-08',
-      onboardingCompleted: true,
+      onboardingCompleted: false,
       streakDays: 0,
       lastStudyDate: new Date().toISOString().split('T')[0],
       xp: 0,

@@ -10,8 +10,6 @@ import {
   Moon,
   Sun,
   LogOut,
-  Shield,
-  UserCheck,
   Check,
   Calendar,
   X,
@@ -76,22 +74,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const handleLogout = () => {
     db.setCurrentUser(null);
     onNavigate('landing');
-  };
-
-  const handleSwitchToAdmin = () => {
-    const adminUser = db.getUsers().find((u) => u.role === 'ADMINISTRADOR');
-    if (adminUser) {
-      db.setCurrentUser(adminUser, true);
-      onNavigate('admin');
-    }
-  };
-
-  const handleSwitchToAluno = () => {
-    const alunoUser = db.getUsers().find((u) => u.role === 'ALUNO');
-    if (alunoUser) {
-      db.setCurrentUser(alunoUser, true);
-      onNavigate('dashboard');
-    }
   };
 
   return (
@@ -341,27 +323,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </span>
                 </div>
               </button>
-
-              {/* Quick Role Toggle button for development & testing */}
-              {currentUser.role === 'ALUNO' ? (
-                <button
-                  onClick={handleSwitchToAdmin}
-                  className="hidden md:flex items-center gap-1 text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 cursor-pointer transition-colors"
-                  title="Alternar para o Painel do Administrador"
-                >
-                  <Shield className="w-3 h-3" />
-                  Admin
-                </button>
-              ) : (
-                <button
-                  onClick={handleSwitchToAluno}
-                  className="hidden md:flex items-center gap-1 text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 cursor-pointer transition-colors"
-                  title="Alternar para a Visão do Aluno"
-                >
-                  <UserCheck className="w-3 h-3" />
-                  Aluno
-                </button>
-              )}
 
               {/* Logout Button */}
               <button
