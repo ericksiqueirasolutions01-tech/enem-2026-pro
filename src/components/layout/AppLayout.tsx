@@ -32,6 +32,13 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     currentRoute === 'pending-approval';
 
   if (isCleanLayout) {
+    if (currentRoute === 'landing') {
+      return (
+        <div className="min-h-screen w-full bg-black text-white">
+          {children}
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col justify-center">
         {children}

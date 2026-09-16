@@ -107,7 +107,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       tag: 'Banca Tradicional',
       seal: 'ENEM 2026',
       questions: '90 QUESTÕES',
-      edition: 'CADERNO COMPLETO',
+      edition: 'SIMULADO COMPLETO',
       sub: 'GABARITO COMENTADO',
       colorFrom: 'from-red-600',
       colorTo: 'to-rose-950',
@@ -495,12 +495,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
         </div>
 
         {/* Linha de Capas de Livros / Apostilas Premium */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 sm:gap-5">
-          {simuladosNetflix.map((sim) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+          {simuladosNetflix.map((sim, idx) => (
             <div
               key={sim.id}
               onClick={() => onNavigate('cadastro')}
-              className={`group relative rounded-2xl p-5 bg-gradient-to-b ${sim.colorFrom} ${sim.colorTo} border ${sim.borderAccent} shadow-2xl hover:scale-[1.04] transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden border-l-[8px] border-l-white/20`}
+              className={`group relative rounded-3xl p-6 sm:p-7 bg-gradient-to-b ${sim.colorFrom} ${sim.colorTo} border ${sim.borderAccent} shadow-2xl hover:scale-[1.03] transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden border-l-[12px] border-l-white/25 min-h-[460px] sm:min-h-[480px] ${
+                idx === 6 ? 'md:col-span-2 md:max-w-md md:mx-auto lg:col-span-1 lg:col-start-2 lg:max-w-none' : ''
+              }`}
             >
               {/* Brilho da Capa */}
               <div className="absolute inset-0 bg-gradient-to-tr from-white/15 via-transparent to-transparent opacity-80 pointer-events-none" />
@@ -508,43 +510,43 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
               <div className="relative z-10 space-y-4">
                 {/* Selo e Ícone */}
                 <div className="flex items-center justify-between">
-                  <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 flex items-center justify-center text-xl shadow-inner">
+                  <div className="w-13 h-13 rounded-2xl bg-white/15 backdrop-blur-md border border-white/25 flex items-center justify-center text-2xl shadow-inner">
                     {sim.icon}
                   </div>
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-black/40 text-white border border-white/20">
+                  <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-black/50 text-white border border-white/20">
                     {sim.tag}
                   </span>
                 </div>
 
                 {/* Bloco Central da Capa */}
-                <div className="space-y-1">
-                  <span className="text-[10px] font-black text-white/80 uppercase tracking-widest block">
+                <div className="space-y-1.5 pt-2">
+                  <span className="text-xs font-black text-white/80 uppercase tracking-widest block">
                     ENEM 2026
                   </span>
-                  <h4 className="text-lg font-black text-white leading-tight group-hover:text-amber-200 transition-colors">
+                  <h4 className="text-xl sm:text-2xl font-black text-white leading-tight group-hover:text-amber-200 transition-colors">
                     {sim.name}
                   </h4>
-                  <p className="text-[11px] font-bold text-amber-300">{sim.focus}</p>
+                  <p className="text-xs sm:text-sm font-bold text-amber-300">{sim.focus}</p>
                 </div>
 
                 {/* Especificações Oficiais */}
-                <div className="p-3 rounded-xl bg-black/40 backdrop-blur-xs border border-white/10 space-y-1.5 text-[10px] text-white">
-                  <div className="flex items-center justify-between font-black text-white">
-                    <span>{sim.questions}</span>
-                    <span className="text-white/80">{sim.edition}</span>
+                <div className="p-4 rounded-2xl bg-black/50 backdrop-blur-xs border border-white/15 space-y-2 text-xs text-white">
+                  <div className="flex items-center justify-between font-black text-xs">
+                    <span className="px-2.5 py-1 rounded-lg bg-white/15">{sim.questions}</span>
+                    <span className="text-white/90 uppercase tracking-wider font-extrabold">{sim.edition}</span>
                   </div>
-                  <p className="font-extrabold text-emerald-300 flex items-center gap-1">
-                    <Check className="w-3 h-3 stroke-[3]" />
+                  <p className="font-extrabold text-emerald-300 flex items-center gap-1.5 pt-1">
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
                     {sim.sub}
                   </p>
                 </div>
               </div>
 
               {/* Botão Inferior de Acesso */}
-              <div className="relative z-10 pt-4 border-t border-white/20 flex items-center justify-between text-xs font-black text-white">
-                <span>Acessar Caderno</span>
-                <span className="w-7 h-7 rounded-full bg-white text-black flex items-center justify-center group-hover:bg-amber-300 transition-colors shadow-md">
-                  <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+              <div className="relative z-10 pt-5 border-t border-white/20 flex items-center justify-between text-xs sm:text-sm font-black text-white">
+                <span>Acessar Caderno Completo</span>
+                <span className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center group-hover:bg-amber-300 transition-colors shadow-md">
+                  <Play className="w-4 h-4 fill-current ml-0.5" />
                 </span>
               </div>
             </div>
@@ -569,7 +571,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 gap-3 sm:gap-4">
           {bibliotecaDisciplinas.map((disc, idx) => (
             <div
               key={idx}

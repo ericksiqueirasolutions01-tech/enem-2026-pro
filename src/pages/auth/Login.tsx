@@ -5,10 +5,7 @@ import {
   Lock,
   Mail,
   ArrowRight,
-  ShieldCheck,
-  UserCheck,
   AlertCircle,
-  Clock,
   ArrowLeft,
 } from 'lucide-react';
 
@@ -18,8 +15,8 @@ interface LoginProps {
 }
 
 export const Login: React.FC<LoginProps> = ({ onNavigate, onLoginSuccess }) => {
-  const [email, setEmail] = useState('aluno@enem2026.com.br');
-  const [password, setPassword] = useState('aluno123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -51,20 +48,6 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, onLoginSuccess }) => {
     }, 400);
   };
 
-  const setDemoAccount = (role: 'aluno' | 'admin' | 'pendente') => {
-    if (role === 'aluno') {
-      setEmail('aluno@enem2026.com.br');
-      setPassword('aluno123');
-    } else if (role === 'admin') {
-      setEmail('admin@enem2026.com.br');
-      setPassword('admin');
-    } else {
-      setEmail('mariana.rocha@gmail.com');
-      setPassword('senha123');
-    }
-    setError(null);
-  };
-
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 relative overflow-hidden text-slate-100 selection:bg-brand-500 selection:text-white">
       {/* Background glow */}
@@ -91,53 +74,6 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, onLoginSuccess }) => {
           <p className="text-xs text-slate-400 font-medium">
             Acesse seu ambiente de estudos e simulados.
           </p>
-        </div>
-
-        {/* Demo Accounts Quick-Fill Buttons */}
-        <div className="bg-slate-950/60 p-3 rounded-2xl border border-slate-800 space-y-2">
-          <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-center">
-            Acesso Rápido de Testes
-          </div>
-          <div className="grid grid-cols-3 gap-1.5">
-            <button
-              type="button"
-              onClick={() => setDemoAccount('aluno')}
-              className={`py-2 px-1.5 rounded-xl text-[11px] font-black uppercase flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                email === 'aluno@enem2026.com.br'
-                  ? 'bg-brand-600 text-white shadow-xs'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Aluno</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setDemoAccount('pendente')}
-              className={`py-2 px-1.5 rounded-xl text-[11px] font-black uppercase flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                email === 'mariana.rocha@gmail.com'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5 text-amber-400" />
-              <span>Pendente</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setDemoAccount('admin')}
-              className={`py-2 px-1.5 rounded-xl text-[11px] font-black uppercase flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                email === 'admin@enem2026.com.br'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Admin</span>
-            </button>
-          </div>
         </div>
 
         {error && (
@@ -195,8 +131,8 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, onLoginSuccess }) => {
 
             <button
               type="button"
-              onClick={() => alert('Em ambiente de teste, use as senhas demonstrativas listadas acima.')}
-              className="text-brand-400 hover:text-brand-300 font-semibold"
+              onClick={() => alert('Para redefinir sua senha, entre em contato com o suporte institucional ou a coordenação pedagógica.')}
+              className="text-brand-400 hover:text-brand-300 font-semibold cursor-pointer"
             >
               Esqueci a senha
             </button>
@@ -217,7 +153,7 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, onLoginSuccess }) => {
             Ainda não tem acesso?{' '}
             <button
               type="button"
-              onClick={() => onNavigate('register')}
+              onClick={() => onNavigate('cadastro')}
               className="text-brand-400 font-bold hover:underline cursor-pointer"
             >
               Criar Conta
