@@ -315,3 +315,4 @@ CREATE TABLE IF NOT EXISTS public.admin_audit_log (
   details JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+

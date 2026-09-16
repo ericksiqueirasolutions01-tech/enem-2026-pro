@@ -17,6 +17,7 @@ import {
   FileCheck2,
   PenTool,
   FolderDown,
+  Menu,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -24,6 +25,7 @@ interface NavbarProps {
   onNavigate: (route: string) => void;
   currentRoute: string;
   onOpenSearch: () => void;
+  onToggleMobileMenu?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -31,6 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigate,
   currentRoute,
   onOpenSearch,
+  onToggleMobileMenu,
 }) => {
   const [profile, setProfile] = useState(() =>
     currentUser ? db.getStudentProfile(currentUser.id) : null
@@ -80,7 +83,18 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors w-full">
       <div className="w-full px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
         {/* 1. Logo & Identidade Visual Reestruturada */}
-        <div className="flex items-center gap-4 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          {onToggleMobileMenu && (
+            <button
+              onClick={onToggleMobileMenu}
+              className="md:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Abrir menu de navegação"
+              aria-label="Abrir menu de navegação"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          )}
+
           <button
             onClick={() => onNavigate(currentUser?.role === 'ADMINISTRADOR' ? 'admin' : 'dashboard')}
             className="flex items-center gap-3 text-left group cursor-pointer focus:outline-none"

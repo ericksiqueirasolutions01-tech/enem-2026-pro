@@ -32,8 +32,8 @@ import {
   Headphones,
   FileCode,
 } from 'lucide-react';
+import { TOTAL_DRIVE_MATERIALS_COUNT } from '../../db/driveConstants';
 import {
-  DRIVE_MATERIALS,
   getDriveMaterialsBySubject,
   DriveMaterial,
 } from '../../db/driveMaterialsData';
@@ -267,7 +267,7 @@ export const MateriasHome: React.FC<MateriasHomeProps> = ({ onNavigate }) => {
                   📁 15 Disciplinas Independentes
                 </span>
                 <span className="px-3 py-1 rounded-xl bg-white/10 font-bold border border-white/10">
-                  📚 {DRIVE_MATERIALS.length} Arquivos Didáticos Catalogados
+                  📚 {TOTAL_DRIVE_MATERIALS_COUNT} Arquivos Didáticos Catalogados
                 </span>
                 <span className="px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
                   🎯 {totalTopicsPlatform} Tópicos Curriculares

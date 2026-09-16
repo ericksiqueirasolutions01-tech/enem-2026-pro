@@ -6,6 +6,14 @@ export default {
   ],
   darkMode: 'class',
   theme: {
+    screens: {
+      xs: '480px',
+      sm: '640px',
+      md: '768px',
+      lg: '1024px',
+      xl: '1280px',
+      '2xl': '1536px',
+    },
     extend: {
       colors: {
         brand: {
@@ -32,8 +40,23 @@ export default {
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
       },
+      boxShadow: {
+        xs: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+      },
+      backdropBlur: {
+        xs: '2px',
+      },
+      borderRadius: {
+        xs: '2px',
+      },
+      spacing: {
+        '0.2': '0.05rem',
+        '13': '3.25rem',
+      },
+      maxWidth: {
+        'container-landing': '1200px',
+      },
     },
   },
   plugins: [],
 }
-

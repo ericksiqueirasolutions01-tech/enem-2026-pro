@@ -834,7 +834,7 @@ export const BibliotecaDrive: React.FC<BibliotecaDriveProps> = ({
                       <a
                         href={material.downloadUrl}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
                         title="Baixar Arquivo"
                       >
@@ -891,7 +891,7 @@ export const BibliotecaDrive: React.FC<BibliotecaDriveProps> = ({
                 <a
                   href={activeMaterial.downloadUrl}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 cursor-pointer transition-colors"
                   title="Baixar Material"
                 >

@@ -234,7 +234,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       {/* TOPBAR ESTILO NETFLIX (TRANSLÚCIDA / STICKY) */}
       {/* ================================================== */}
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 px-4 sm:px-8 lg:px-12 py-3.5 sm:py-4 flex items-center justify-between ${
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 px-4 sm:px-8 h-16 flex items-center justify-between ${
           isScrolled
             ? 'bg-black/95 backdrop-blur-md border-b border-white/10 shadow-2xl shadow-black'
             : 'bg-gradient-to-b from-black/90 via-black/40 to-transparent'
@@ -243,7 +243,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
         <div className="flex items-center gap-6 sm:gap-10">
           {/* Logo ENEM 2026 PRO */}
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-red-600 via-rose-600 to-red-700 flex items-center justify-center text-white shadow-lg shadow-red-600/30 border border-white/20">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 via-rose-600 to-red-700 flex items-center justify-center text-white shadow-lg shadow-red-600/30 border border-white/20">
               <GraduationCap className="w-6 h-6" />
             </div>
             <div>
@@ -279,15 +279,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
         <div className="flex items-center gap-3">
           <button
             onClick={() => onNavigate('login')}
-            className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg text-xs font-bold text-white hover:text-slate-200 bg-white/10 hover:bg-white/20 border border-white/20 transition-all cursor-pointer flex items-center gap-2"
+            className="px-4 py-2 rounded-lg text-xs font-bold text-white hover:text-slate-200 bg-white/10 hover:bg-white/20 border border-white/20 transition-all cursor-pointer flex items-center gap-2"
           >
             <Lock className="w-3.5 h-3.5 text-red-500" />
-            <span>Entrar na Minha Conta</span>
+            <span>Entrar</span>
           </button>
 
           <button
             onClick={() => onNavigate('cadastro')}
-            className="hidden xs:flex px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-black shadow-lg shadow-red-600/40 transition-all hover:scale-105 active:scale-95 cursor-pointer items-center gap-1.5"
+            className="hidden xs:flex px-4 sm:px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-black shadow-lg shadow-red-600/40 transition-all hover:scale-105 active:scale-95 cursor-pointer items-center gap-1.5"
           >
             <Play className="w-3 h-3 fill-white" />
             <span>Começar</span>
@@ -296,9 +296,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       </header>
 
       {/* ================================================== */}
-      {/* HERO BILLBOARD CINEMATOGRÁFICO (ESTILO NETFLIX) */}
+      {/* HERO BILLBOARD CINEMATOGRÁFICO (ESTILO NETFLIX COMPACTADO) */}
       {/* ================================================== */}
-      <section id="hero" className="relative min-h-[92vh] sm:min-h-[96vh] flex items-center justify-start overflow-hidden pt-20">
+      <section id="hero" className="relative min-h-[76dvh] lg:min-h-[80dvh] flex items-center justify-start overflow-hidden pt-16">
         {/* Imagem de Fundo Cinematográfica em Alta Resolução */}
         <div className="absolute inset-0 z-0">
           <img
@@ -309,87 +309,87 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
           {/* Vinheta lateral e vertical em degradê contínuo para o preto puro */}
           <div className="absolute inset-0 bg-gradient-to-r from-black via-black/85 via-45% to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 via-80% to-transparent" />
-          <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-black/80 to-transparent" />
+          <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-black/80 to-transparent" />
         </div>
 
         {/* Conteúdo do Hero (Alinhado à Esquerda como Netflix Original) */}
-        <div className="relative z-10 max-w-7xl mx-auto w-full px-4 sm:px-8 lg:px-12 py-12 sm:py-20 flex flex-col justify-center space-y-6">
+        <div className="relative z-10 max-w-[1200px] mx-auto w-full px-4 sm:px-8 py-8 sm:py-12 flex flex-col justify-center space-y-4 sm:space-y-5">
           
           {/* Badge Top 1 Aprovação */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md bg-red-600/90 text-white text-[10px] sm:text-xs font-black uppercase tracking-wider w-fit shadow-md">
-            <Flame className="w-4 h-4 fill-white" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-red-600/90 text-white text-[10px] sm:text-xs font-black uppercase tracking-wider w-fit shadow-md">
+            <Flame className="w-3.5 h-3.5 fill-white" />
             <span>#1 PLATAFORMA DE PREPARAÇÃO • ENEM 2026</span>
           </div>
 
           {/* Título Principal */}
-          <div className="space-y-2 max-w-3xl">
-            <h2 className="text-xs sm:text-sm font-black uppercase tracking-[0.3em] text-red-500">
+          <div className="space-y-1.5 max-w-3xl">
+            <h2 className="text-xs font-black uppercase tracking-[0.25em] text-red-500">
               PLATAFORMA DE APROVAÇÃO INTELIGENTE
             </h2>
-            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-white tracking-tight leading-[1.05] drop-shadow-2xl">
+            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.08] drop-shadow-2xl">
               ENEM 2026
             </h1>
-            <p className="text-xl sm:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-slate-400 tracking-tight pt-1">
+            <p className="text-lg sm:text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-slate-400 tracking-tight pt-0.5">
               "O primeiro passo da sua aprovação está aqui."
             </p>
           </div>
 
           {/* Texto de Apoio e Bullet Points */}
-          <div className="space-y-3 max-w-2xl text-slate-200">
-            <p className="text-sm sm:text-base font-normal leading-relaxed text-slate-300">
+          <div className="space-y-2.5 max-w-2xl text-slate-200">
+            <p className="text-xs sm:text-sm font-normal leading-relaxed text-slate-300">
               Prepare-se com uma plataforma completa para o ENEM 2026. Tenha acesso a:
             </p>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1 text-xs sm:text-sm font-semibold text-white">
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-0.5 text-xs sm:text-xs font-semibold text-white">
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
                 <span>Simulados atualizados</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
                 <span>Materiais completos</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
                 <span>Redação inteligente</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
                 <span>Plano de estudos</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                <span>Tutor IA 24h</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                <span>Tutor pedagógico</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
                 <span>Análise de desempenho</span>
               </div>
             </div>
           </div>
 
-          {/* Botões de Ação Principais (Estilo Netflix Billboard) */}
-          <div className="flex flex-col sm:flex-row items-center gap-3.5 pt-4 max-w-xl">
+          {/* Botões de Ação Principais (Estilo Netflix Billboard Compactado) */}
+          <div className="flex flex-col sm:flex-row items-center gap-3 pt-2 max-w-xl">
             <button
               onClick={() => onNavigate('cadastro')}
-              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-white hover:bg-slate-200 text-black font-black text-sm sm:text-base transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center gap-3 shadow-2xl shadow-white/20"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-white hover:bg-slate-200 text-black font-black text-xs sm:text-sm transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center gap-2.5 shadow-2xl shadow-white/20"
             >
-              <Play className="w-5 h-5 fill-black" />
+              <Play className="w-4 h-4 fill-black" />
               <span>COMEÇAR MINHA PREPARAÇÃO</span>
             </button>
 
             <button
               onClick={() => onNavigate('login')}
-              className="w-full sm:w-auto px-7 py-4 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-md text-white font-bold text-sm sm:text-base border border-white/30 transition-all cursor-pointer flex items-center justify-center gap-2.5"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-md text-white font-bold text-xs sm:text-sm border border-white/30 transition-all cursor-pointer flex items-center justify-center gap-2"
             >
-              <Lock className="w-4 h-4 text-red-400" />
+              <Lock className="w-3.5 h-3.5 text-red-400" />
               <span>ENTRAR NA MINHA CONTA</span>
             </button>
           </div>
 
           {/* Selo Etário / Classificação Oficial */}
-          <div className="pt-2 flex items-center gap-3 text-xs text-slate-400 font-medium">
-            <span className="px-2 py-0.5 rounded border border-slate-600 font-mono text-[11px] font-bold text-white">
+          <div className="pt-1 flex items-center gap-2.5 text-[11px] text-slate-400 font-medium">
+            <span className="px-2 py-0.5 rounded border border-slate-600 font-mono text-[10px] font-bold text-white">
               LIVRE
             </span>
             <span>Matriz Oficial de Referência do ENEM • Teoria de Resposta ao Item (TRI)</span>
@@ -400,7 +400,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       {/* ================================================== */}
       {/* 4. CARROSSEL DE CONTEÚDOS: "CONTINUE SUA JORNADA" */}
       {/* ================================================== */}
-      <section id="jornada" className="relative z-10 px-4 sm:px-8 lg:px-12 py-8 -mt-6 sm:-mt-10 space-y-4">
+      <section id="jornada" className="relative z-10 max-w-[1200px] mx-auto w-full px-4 sm:px-8 py-8 -mt-6 sm:-mt-8 space-y-4">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <span className="text-[10px] font-black uppercase text-red-500 tracking-widest">Seu Trilho de Estudos</span>
@@ -428,47 +428,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
-
-                {/* Badge Superior */}
-                <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-red-600/90 text-white text-[9px] font-black uppercase tracking-wider">
+                <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-black/70 backdrop-blur-md text-[9px] font-black tracking-wider text-red-400 border border-white/10">
                   {item.badge}
-                </div>
-
-                {/* Botão Play Flutuante no Hover */}
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-xs">
-                  <div className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shadow-2xl scale-90 group-hover:scale-100 transition-transform">
-                    <Play className="w-5 h-5 fill-black ml-0.5" />
-                  </div>
-                </div>
-
-                {/* Barra de Progresso Estilo Streaming */}
-                <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-slate-800">
-                  <div
-                    className="h-full bg-red-600 transition-all duration-500"
-                    style={{ width: `${item.progress}%` }}
-                  />
                 </div>
               </div>
 
-              {/* Informações do Card */}
-              <div className="p-4 sm:p-5 space-y-2 flex-1 flex flex-col justify-between">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider block">
-                    {item.category}
-                  </span>
-                  <h4 className="text-base sm:text-lg font-black text-white group-hover:text-red-400 transition-colors">
-                    {item.title}
-                  </h4>
-                  <p className="text-xs text-slate-300 leading-relaxed line-clamp-2">
-                    {item.description}
-                  </p>
-                </div>
+              {/* Informações */}
+              <div className="p-4 space-y-2 bg-gradient-to-b from-slate-950/80 to-slate-950">
+                <span className="text-[10px] font-bold text-slate-400 block truncate">{item.category}</span>
+                <h4 className="font-bold text-sm text-white group-hover:text-red-400 transition-colors truncate">
+                  {item.title}
+                </h4>
+                <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                  {item.description}
+                </p>
 
-                <div className="pt-3 border-t border-white/10 flex items-center justify-between text-[11px] font-semibold text-slate-400">
+                <div className="pt-2 flex items-center justify-between text-[11px] text-slate-400 border-t border-white/10">
                   <span>{item.duration}</span>
-                  <span className="text-white font-bold flex items-center gap-1 group-hover:text-red-400">
-                    <span>Acessar</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
+                  <span className="text-red-400 font-bold flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                    Assistir <Play className="w-2.5 h-2.5 fill-red-400" />
                   </span>
                 </div>
               </div>
@@ -480,7 +458,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       {/* ================================================== */}
       {/* 5. SEÇÃO: OS MELHORES SIMULADOS ENEM 2026 (7 CAPAS) */}
       {/* ================================================== */}
-      <section id="simulados" className="relative z-10 px-4 sm:px-8 lg:px-12 py-10 space-y-5">
+      <section id="simulados" className="relative z-10 max-w-[1200px] mx-auto w-full px-4 sm:px-8 py-10 space-y-5">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <span className="text-[10px] font-black uppercase text-red-500 tracking-widest">Vitrine de Elite</span>
@@ -500,12 +478,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
             <div
               key={sim.id}
               onClick={() => onNavigate('cadastro')}
-              className={`group relative rounded-3xl p-6 sm:p-7 bg-gradient-to-b ${sim.colorFrom} ${sim.colorTo} border ${sim.borderAccent} shadow-2xl hover:scale-[1.03] transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden border-l-[12px] border-l-white/25 min-h-[460px] sm:min-h-[480px] ${
+              className={`group relative rounded-3xl overflow-hidden bg-gradient-to-b ${sim.colorFrom} ${sim.colorTo} p-1 shadow-2xl hover:shadow-red-600/30 transition-all duration-300 hover:scale-[1.03] cursor-pointer flex flex-col justify-between border ${sim.borderAccent} min-h-[460px] ${
                 idx === 6 ? 'md:col-span-2 md:max-w-md md:mx-auto lg:col-span-1 lg:col-start-2 lg:max-w-none' : ''
               }`}
             >
-              {/* Brilho da Capa */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-white/15 via-transparent to-transparent opacity-80 pointer-events-none" />
 
               <div className="relative z-10 space-y-4">
                 {/* Selo e Ícone */}
@@ -557,7 +533,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       {/* ================================================== */}
       {/* 6. SEÇÃO: BIBLIOTECA COMPLETA POR MATÉRIAS */}
       {/* ================================================== */}
-      <section id="biblioteca" className="relative z-10 px-4 sm:px-8 lg:px-12 py-10 space-y-5 bg-gradient-to-b from-transparent via-slate-950 to-transparent">
+      <section id="biblioteca" className="relative z-10 max-w-[1200px] mx-auto w-full px-4 sm:px-8 py-10 space-y-5 bg-gradient-to-b from-transparent via-slate-950 to-transparent">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <span className="text-[10px] font-black uppercase text-red-500 tracking-widest">Acervo Curricular</span>
@@ -593,7 +569,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       {/* ================================================== */}
       {/* 7. SEÇÃO: REDAÇÃO ENEM (ESTILO STREAMING ORIGINAL) */}
       {/* ================================================== */}
-      <section id="redacao" className="relative z-10 px-4 sm:px-8 lg:px-12 py-12">
+      <section id="redacao" className="relative z-10 max-w-[1200px] mx-auto w-full px-4 sm:px-8 py-10">
         <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-purple-950 via-slate-950 to-black border border-purple-500/30 p-6 sm:p-10 shadow-2xl">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             
@@ -609,8 +585,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                   ✍️ Prepare sua redação
                 </h3>
                 <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-                  Crie sua redação com temas que podem aparecer no ENEM 2026 e receba uma análise inteligente para evoluir.
+                  Crie sua redação com temas que podem aparecer no ENEM 2026 e receba uma análise formativa inteligente para evoluir até a nota 1000.
                 </p>
+                <div className="inline-block text-[11px] text-purple-300/80 bg-purple-950/40 px-2.5 py-1 rounded border border-purple-500/20">
+                  Estimativa Pedagógica Automatizada • Diagnóstico formativo calibrado pelas 5 competências do INEP
+                </div>
               </div>
 
               {/* 4 Destaques */}
@@ -707,7 +686,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       {/* ================================================== */}
       {/* 8. SEÇÃO: TUTOR IA & ATUALIZAÇÃO CONSTANTE */}
       {/* ================================================== */}
-      <section id="tutor-ia" className="relative z-10 px-4 sm:px-8 lg:px-12 py-10">
+      <section id="tutor-ia" className="relative z-10 max-w-[1200px] mx-auto w-full px-4 sm:px-8 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
           {/* Card 1: Tutor IA */}
@@ -722,6 +701,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                 Tire dúvidas, peça explicações, crie resumos e organize seus estudos em segundos com inteligência pedagógica calibrada para o ENEM 2026.
               </p>
+              <div className="inline-block text-[11px] text-indigo-300/80 bg-indigo-950/50 px-2.5 py-1 rounded border border-indigo-500/20">
+                Suporte pedagógico automatizado para estudo individualizado (diagnóstico formativo)
+              </div>
 
               {/* Chips de Ferramentas Rápidas */}
               <div className="flex flex-wrap gap-2 pt-2">
@@ -790,7 +772,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       {/* ================================================== */}
       {/* 9. DEPOIMENTOS ILUSTRATIVOS */}
       {/* ================================================== */}
-      <section id="depoimentos" className="relative z-10 px-4 sm:px-8 lg:px-12 py-10 space-y-6">
+      <section id="depoimentos" className="relative z-10 max-w-[1200px] mx-auto w-full px-4 sm:px-8 py-10 space-y-6">
         <div className="text-center space-y-2 max-w-2xl mx-auto">
           <span className="text-[10px] font-black uppercase text-amber-400 tracking-widest">Resultados Reais</span>
           <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
@@ -855,7 +837,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       {/* ================================================== */}
       {/* 10. FINAL CTA CINEMATOGRÁFICO */}
       {/* ================================================== */}
-      <section className="relative z-10 px-4 sm:px-8 lg:px-12 py-12">
+      <section className="relative z-10 max-w-[1200px] mx-auto w-full px-4 sm:px-8 py-10">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-red-950 via-black to-slate-950 border border-red-600/30 p-8 sm:p-14 text-center space-y-6 shadow-2xl">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-red-600/20 via-transparent to-transparent pointer-events-none" />
 
@@ -895,22 +877,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       {/* 11. FOOTER ESTILO STREAMING (SEM PREÇOS) */}
       {/* ================================================== */}
       <footer className="relative z-20 border-t border-white/10 bg-black px-4 sm:px-8 lg:px-12 py-10 text-xs text-slate-500 space-y-4">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5 font-black text-white text-sm">
-            <GraduationCap className="w-5 h-5 text-red-500" />
-            <span>ENEM 2026 PRO — Plataforma de Aprovação Inteligente</span>
+        <div className="max-w-[1200px] mx-auto w-full space-y-4">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5 font-black text-white text-sm">
+              <GraduationCap className="w-5 h-5 text-red-500" />
+              <span>ENEM 2026 PRO — Plataforma de Aprovação Inteligente</span>
+            </div>
+
+            <div className="flex items-center gap-6 text-xs text-slate-400">
+              <span className="hover:text-white transition-colors cursor-pointer" onClick={() => onNavigate('login')}>Entrar</span>
+              <span className="hover:text-white transition-colors cursor-pointer" onClick={() => onNavigate('cadastro')}>Criar Conta</span>
+              <span className="hover:text-white transition-colors cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Voltar ao Topo</span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-6 text-xs text-slate-400">
-            <span className="hover:text-white transition-colors cursor-pointer" onClick={() => onNavigate('login')}>Entrar</span>
-            <span className="hover:text-white transition-colors cursor-pointer" onClick={() => onNavigate('cadastro')}>Criar Conta</span>
-            <span className="hover:text-white transition-colors cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Voltar ao Topo</span>
-          </div>
+          <p className="text-slate-500 text-center sm:text-left">
+            "O primeiro passo da sua aprovação está aqui." • Todos os direitos reservados.
+          </p>
         </div>
-
-        <p className="text-slate-500 text-center sm:text-left">
-          "O primeiro passo da sua aprovação está aqui." • Todos os direitos reservados.
-        </p>
       </footer>
     </div>
   );

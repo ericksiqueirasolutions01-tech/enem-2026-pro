@@ -112,3 +112,4 @@ bootstrapAdmin().catch((err) => {
   console.error('❌ Erro inesperado no bootstrap:', err);
   process.exit(1);
 });
+

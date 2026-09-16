@@ -22,6 +22,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 }) => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Telas sem Sidebar e BottomNav (autenticação, onboarding, landing e tela de pendente)
   const isCleanLayout =
@@ -53,6 +54,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         onNavigate={onNavigate}
         currentRoute={currentRoute}
         onOpenSearch={() => setSearchOpen(true)}
+        onToggleMobileMenu={() => setMobileMenuOpen((prev) => !prev)}
       />
 
       <div className="flex-1 flex w-full">
@@ -60,6 +62,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           currentRoute={currentRoute}
           onNavigate={onNavigate}
           currentUser={currentUser}
+          isOpen={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 md:pb-10 w-full min-w-0 overflow-x-hidden">

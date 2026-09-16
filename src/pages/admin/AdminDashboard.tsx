@@ -17,7 +17,7 @@ import {
   MaterialContentType,
 } from '../../types';
 import { ENEM_CURRICULUM } from '../../db/curriculumData';
-import { DriveMaterial } from '../../db/driveMaterialsData';
+import type { DriveMaterial } from '../../db/driveMaterialsData';
 import {
   LIBRARY_AREAS,
   getAllEnrichedMaterials,
@@ -1284,7 +1284,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
                         <a
                           href={mat.embedUrl}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noopener noreferrer"
                           className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 text-xs font-bold flex items-center gap-1"
                         >
                           <Eye className="w-3.5 h-3.5" />

@@ -31,7 +31,7 @@ import {
   Atom,
   Calculator,
 } from 'lucide-react';
-import { DRIVE_MATERIALS } from '../../db/driveMaterialsData';
+import { TOTAL_DRIVE_MATERIALS_COUNT } from '../../db/driveConstants';
 import {
   AreaChart,
   Area,
@@ -541,7 +541,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
                 <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-tight">Disciplinas</span>
               </div>
               <div className="bg-white/5 border border-white/10 rounded-2xl p-3 text-center">
-                <span className="block text-xl sm:text-2xl font-black text-emerald-400 font-mono">{DRIVE_MATERIALS.length}</span>
+                <span className="block text-xl sm:text-2xl font-black text-emerald-400 font-mono">{TOTAL_DRIVE_MATERIALS_COUNT}</span>
                 <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-tight">Arquivos didáticos</span>
               </div>
               <div className="bg-white/5 border border-white/10 rounded-2xl p-3 text-center">

@@ -414,7 +414,7 @@ export const EtecHome: React.FC<EtecHomeProps> = ({ onNavigate }) => {
                   <a
                     href={mat.downloadUrl}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 cursor-pointer transition-colors"
                     title="Baixar PDF"
                   >
@@ -489,7 +489,7 @@ export const EtecHome: React.FC<EtecHomeProps> = ({ onNavigate }) => {
                   <a
                     href={prova.material.downloadUrl}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 cursor-pointer"
                     title="Download"
                   >
@@ -704,7 +704,7 @@ export const EtecHome: React.FC<EtecHomeProps> = ({ onNavigate }) => {
                 <a
                   href={activeMaterial.downloadUrl}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 cursor-pointer"
                   title="Baixar Arquivo"
                 >

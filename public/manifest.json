@@ -1,0 +1,17 @@
+{
+  "name": "ENEM 2026 PRO",
+  "short_name": "ENEM 2026",
+  "description": "Plataforma de preparação completa para o ENEM 2026",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#0d77f8",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "48x48 72x72 96x96 144x144 192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
+

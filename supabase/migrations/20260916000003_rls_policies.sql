@@ -227,3 +227,4 @@ CREATE POLICY "materials_manage_admin"
 CREATE POLICY "admin_audit_log_admin_only"
   ON public.admin_audit_log FOR SELECT
   USING (public.is_admin());
+

@@ -7,5 +7,29 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5174,
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/react-router-dom')) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/recharts')) {
+            return 'vendor-charts';
+          }
+          if (id.includes('node_modules/lucide-react')) {
+            return 'vendor-icons';
+          }
+          if (id.includes('src/db/driveMaterialsData.ts')) {
+            return 'data-drive-materials';
+          }
+          if (id.includes('src/db/angloSirioData.ts') || id.includes('src/db/simuladosData.ts')) {
+            return 'data-simulados';
+          }
+        },
+      },
+    },
+  },
 });
 

@@ -17,24 +17,34 @@ import {
   Target,
   GraduationCap,
   FolderDown,
+  X,
 } from 'lucide-react';
-import { DRIVE_MATERIALS } from '../../db/driveMaterialsData';
+import { TOTAL_DRIVE_MATERIALS_COUNT } from '../../db/driveConstants';
 
 interface SidebarProps {
   currentRoute: string;
   onNavigate: (route: string) => void;
   currentUser: User | null;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentRoute,
   onNavigate,
   currentUser,
+  isOpen = false,
+  onClose,
 }) => {
   const mistakes = currentUser ? db.getMistakes(currentUser.id).filter((m) => !m.isMastered) : [];
   const enemSimulados = db.getSimuladosByCategory('ENEM_2026');
   const outrosVestibulares = db.getSimuladosByCategory('OUTROS_VESTIBULARES');
   const isAdmin = currentUser?.role === 'ADMINISTRADOR';
+
+  const handleItemClick = (id: string) => {
+    onNavigate(id);
+    if (onClose) onClose();
+  };
 
   interface SidebarNavItem {
     id: string;
@@ -51,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'materias',
       label: 'Matérias',
       icon: BookOpen,
-      badge: `${DRIVE_MATERIALS.length}`,
+      badge: `${TOTAL_DRIVE_MATERIALS_COUNT}`,
       badgeColor: 'bg-brand-600',
     },
     { id: 'plano', label: 'Plano de Estudos', icon: CalendarDays },
@@ -108,7 +118,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return (
           <button
             key={item.id}
-            onClick={() => onNavigate(item.id)}
+            onClick={() => handleItemClick(item.id)}
             className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-bold text-xs transition-all cursor-pointer ${
               isActive
                 ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-md shadow-brand-500/25 font-black scale-[1.01]'
@@ -147,9 +157,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </div>
   );
 
-  return (
-    <aside className="hidden md:flex flex-col w-64 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 min-h-[calc(100vh-5rem)] p-3 select-none">
-      <div className="space-y-3 flex-1">
+  const sidebarContent = (
+    <>
+      <div className="space-y-3 flex-1 overflow-y-auto">
         {/* 1. GRUPO: ESTUDOS */}
         {renderNavGroup('ESTUDOS', estudosItems)}
 
@@ -168,7 +178,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <div className="space-y-1">
               <button
-                onClick={() => onNavigate('admin')}
+                onClick={() => handleItemClick('admin')}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl font-bold text-xs transition-all cursor-pointer ${
                   currentRoute === 'admin'
                     ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md font-black'
@@ -184,7 +194,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Gamification / Motivation Card */}
-      <div className="mt-6 p-3.5 rounded-2xl bg-gradient-to-br from-brand-50 to-indigo-50 dark:from-brand-950/40 dark:to-indigo-950/40 border border-brand-200 dark:border-brand-800/60 text-xs">
+      <div className="mt-4 p-3.5 rounded-2xl bg-gradient-to-br from-brand-50 to-indigo-50 dark:from-brand-950/40 dark:to-indigo-950/40 border border-brand-200 dark:border-brand-800/60 text-xs shrink-0">
         <div className="flex items-center gap-2 mb-1.5">
           <Sparkles className="w-4 h-4 text-brand-600 dark:text-brand-400" />
           <span className="font-black text-brand-900 dark:text-brand-200 uppercase tracking-tight">
@@ -195,7 +205,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
           Você está no caminho certo para sua aprovação. Mantenha o ritmo!
         </p>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar (Fixo) */}
+      <aside className="hidden md:flex flex-col w-64 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 min-h-[calc(100vh-5rem)] p-3 select-none">
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile/Tablet Drawer com Backdrop */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex animate-in fade-in">
+          {/* Backdrop escuro */}
+          <div
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+            onClick={onClose}
+          />
+
+          {/* Painel do Drawer */}
+          <div className="relative w-72 max-w-[85vw] h-full bg-white dark:bg-slate-900 shadow-2xl flex flex-col p-4 border-r border-slate-200 dark:border-slate-800 z-10 animate-in slide-in-from-left duration-200">
+            <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2 font-black text-sm text-slate-900 dark:text-white">
+                <GraduationCap className="w-5 h-5 text-brand-600" />
+                <span>Navegação</span>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                title="Fechar menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {sidebarContent}
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

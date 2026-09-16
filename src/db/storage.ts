@@ -37,7 +37,7 @@ import {
   ALL_SEED_QUESTIONS,
   SEED_SIMULADOS,
 } from './simuladosData';
-import { DriveMaterial } from './driveMaterialsData';
+import type { DriveMaterial } from './driveMaterialsData';
 import { getAllEnrichedMaterials, EnrichedMaterial, classifyMaterial } from './libraryStructure';
 
 const STORAGE_KEYS = {

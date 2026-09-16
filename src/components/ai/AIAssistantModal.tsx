@@ -326,6 +326,9 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
               <Send className="w-4 h-4" />
             </button>
           </form>
+          <div className="pt-2 text-center text-[10px] text-slate-400">
+            Estimativa Pedagógica Automatizada (Metodologia TRI) • Utilize como diagnóstico formativo para estudo individual, não como nota oficial do INEP.
+          </div>
         </div>
       </div>
     </div>

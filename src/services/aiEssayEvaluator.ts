@@ -31,7 +31,7 @@ export class AiEssayEvaluator {
         inTextAnnotations: [],
         pedagogicalSummary: 'A redação não atinge o tamanho mínimo exigido pelo edital do ENEM. Desenvolva pelo menos 4 parágrafos (Introdução, 2 Desenvolvimentos e Conclusão) totalizando entre 20 e 30 linhas.',
         evaluatedAt: new Date().toISOString(),
-        aiDisclaimer: 'Nota estimada para fins de estudo. Não corresponde à correção oficial do ENEM.',
+        aiDisclaimer: 'Estimativa Pedagógica Automatizada (Metodologia TRI) — utilize como diagnóstico formativo para estudo individual, não como nota oficial do INEP.',
       };
     }
 
@@ -74,7 +74,7 @@ export class AiEssayEvaluator {
       inTextAnnotations: annotations,
       pedagogicalSummary,
       evaluatedAt: new Date().toISOString(),
-      aiDisclaimer: 'Nota estimada para fins de estudo. Não corresponde à correção oficial do ENEM.',
+      aiDisclaimer: 'Estimativa Pedagógica Automatizada (Metodologia TRI) — utilize como diagnóstico formativo para estudo individual, não como nota oficial do INEP. A redação é pontuada de 0 a 1000 dividida em 5 competências oficiais do ENEM (200 pts cada).',
     };
   }
 

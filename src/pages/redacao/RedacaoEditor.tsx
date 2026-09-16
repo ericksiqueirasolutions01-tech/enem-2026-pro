@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../db/storage';
 import { EssayTopic, Essay } from '../../types';
 import { AiEssayEvaluator } from '../../services/aiEssayEvaluator';
+import { storageRepository } from '../../services/repositories/storageRepository';
 import {
   PenTool,
   Clock,
@@ -37,6 +38,7 @@ export const RedacaoEditor: React.FC<RedacaoEditorProps> = ({ topicId, onNavigat
   const [text, setText] = useState('');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [uploadedFilePreview, setUploadedFilePreview] = useState<string | null>(null);
+  const [uploadedRawFile, setUploadedRawFile] = useState<File | null>(null);
 
   const [showMotivating, setShowMotivating] = useState(true);
   const [showGuide, setShowGuide] = useState(false);
@@ -67,6 +69,13 @@ export const RedacaoEditor: React.FC<RedacaoEditorProps> = ({ topicId, onNavigat
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const validation = storageRepository.validateEssayFile(file);
+    if (!validation.valid) {
+      alert(validation.error);
+      return;
+    }
+
+    setUploadedRawFile(file);
     setUploadedFileName(file.name);
     const reader = new FileReader();
     reader.onload = () => {
@@ -118,20 +127,35 @@ export const RedacaoEditor: React.FC<RedacaoEditorProps> = ({ topicId, onNavigat
 
     setIsSubmitting(true);
     try {
+      let finalFileUrl = uploadedFilePreview || undefined;
+      const essayId = `ess-${Date.now()}`;
+
+      // Upload seguro para o Supabase Storage se houver arquivo
+      if (uploadedRawFile) {
+        const uploadRes = await storageRepository.uploadEssayFile(
+          currentUser.id,
+          essayId,
+          uploadedRawFile
+        );
+        if (uploadRes.url) {
+          finalFileUrl = uploadRes.url;
+        }
+      }
+
       const correction = await AiEssayEvaluator.evaluate(
         text || `Redação manuscrita transcrita via OCR a partir do arquivo ${uploadedFileName}`,
         topic.theme
       );
 
       const finalEssay: Essay = {
-        id: `ess-${Date.now()}`,
+        id: essayId,
         userId: currentUser.id,
         topicId: topic.id,
         topicTheme: topic.theme,
         text: text || `[Redação submetida por upload: ${uploadedFileName}]`,
         submissionType: submissionMode,
         fileName: uploadedFileName || undefined,
-        fileUrl: uploadedFilePreview || undefined,
+        fileUrl: finalFileUrl,
         lineCount: estimatedLines,
         timeSpentMinutes: Math.ceil(timeSpentSeconds / 60),
         status: 'CORRECTED',
