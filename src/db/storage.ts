@@ -1400,25 +1400,19 @@ class StorageService {
         c.code.replace(/[^A-Z0-9]/g, '').toUpperCase() === cleanCode.replace(/[^A-Z0-9]/g, '')
     );
 
-    // Fallback inteligente para variações de cupons e descontos dinâmicos
+    // Fallback inteligente universal: aceita qualquer cupom promocional ou bolsa
     if (!coupon) {
       const alphaNum = cleanCode.replace(/[^A-Z0-9]/g, '');
 
       // 1. Bolsas Integrais e Acesso Gratuito (100% OFF)
+      // Se contiver qualquer menção a bolsa, gratis, isencao, isento, free, zero ou 100
       if (
-        [
-          'BOLSA',
-          'BOLSA100',
-          'GRATIS',
-          'GRATIS100',
-          'ISENCAO',
-          'ISENTO',
-          '100OFF',
-          'FREE',
-          'ZERO',
-          'BOLSADEESTUDO',
-          'BOLSAESTUDO',
-        ].includes(alphaNum)
+        alphaNum.includes('BOLSA') ||
+        alphaNum.includes('GRATIS') ||
+        alphaNum.includes('ISEN') ||
+        alphaNum.includes('FREE') ||
+        alphaNum.includes('ZERO') ||
+        alphaNum.includes('100')
       ) {
         coupon = {
           id: `dyn-bolsa-${cleanCode.toLowerCase()}`,
@@ -1429,39 +1423,33 @@ class StorageService {
           active: true,
           createdAt: new Date().toISOString(),
         };
-      } else if (
-        ['DESCONTO', 'PROMO', 'CUPOM', 'ENEM', 'VESTIBULAR', 'ESTUDANTE', 'QUEROESTUDAR', 'QUEROAPROVACAO'].includes(
-          alphaNum
-        )
-      ) {
-        // Palavras-chave promocionais comuns sem numeração explícita: 20% OFF
-        coupon = {
-          id: `dyn-promo-${cleanCode.toLowerCase()}`,
-          code: cleanCode,
-          discountType: 'PERCENTAGE',
-          discountValue: 20,
-          usedCount: 0,
-          active: true,
-          createdAt: new Date().toISOString(),
-        };
       } else {
-        // 2. Extrai percentual dinâmico (ex: ENEM15, PROMO35, DESCONTO25, 40OFF, DESC50, ENEM80, etc.)
-        const match = alphaNum.match(
-          /^(?:ENEM|PROMO|DESCONTO|BOLSA|OFF|DESC|CUPOM|VALE|VIP)?(\d{1,3})(?:OFF|PCT|PORCENTO)?$/i
-        );
-        if (match) {
-          const pct = parseInt(match[1], 10);
-          if (pct > 0 && pct <= 100) {
-            coupon = {
-              id: `dyn-${cleanCode.toLowerCase()}`,
-              code: cleanCode,
-              discountType: 'PERCENTAGE',
-              discountValue: pct,
-              usedCount: 0,
-              active: true,
-              createdAt: new Date().toISOString(),
-            };
-          }
+        // 2. Extrai qualquer porcentagem numérica presente no código (ex: AMIGO30, ERICK50, DESC25, 40OFF)
+        const numMatch = alphaNum.match(/(\d{1,3})/);
+        if (numMatch) {
+          const num = parseInt(numMatch[1], 10);
+          const pct = Math.min(100, Math.max(5, num));
+          coupon = {
+            id: `dyn-${cleanCode.toLowerCase()}`,
+            code: cleanCode,
+            discountType: 'PERCENTAGE',
+            discountValue: pct,
+            usedCount: 0,
+            active: true,
+            createdAt: new Date().toISOString(),
+          };
+        } else if (alphaNum.length >= 2) {
+          // 3. Qualquer outro código promocional de texto informado (ex: ERICK, AMIGO, VIP, ALUNO, etc.)
+          // Aplica 20% de desconto garantido para não barrar o aluno
+          coupon = {
+            id: `dyn-promo-${cleanCode.toLowerCase()}`,
+            code: cleanCode,
+            discountType: 'PERCENTAGE',
+            discountValue: 20,
+            usedCount: 0,
+            active: true,
+            createdAt: new Date().toISOString(),
+          };
         }
       }
     }
@@ -1469,7 +1457,7 @@ class StorageService {
     if (!coupon) {
       return {
         valid: false,
-        error: 'Cupom inválido ou expirado. Tente BOLSA100, ENEM20 ou PROMO50.',
+        error: 'Digite um cupom válido (ex: BOLSA100, ENEM20 ou PROMO50).',
         originalPriceCents,
         discountCents: 0,
         finalPriceCents: originalPriceCents,

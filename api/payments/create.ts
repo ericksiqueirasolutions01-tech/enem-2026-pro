@@ -117,19 +117,12 @@ export default async function handler(req: any, res: any) {
 
       // 1. Bolsas Integrais e Acesso Gratuito (100% OFF)
       if (
-        [
-          'BOLSA',
-          'BOLSA100',
-          'GRATIS',
-          'GRATIS100',
-          'ISENCAO',
-          'ISENTO',
-          '100OFF',
-          'FREE',
-          'ZERO',
-          'BOLSADEESTUDO',
-          'BOLSAESTUDO',
-        ].includes(alphaNum)
+        alphaNum.includes('BOLSA') ||
+        alphaNum.includes('GRATIS') ||
+        alphaNum.includes('ISEN') ||
+        alphaNum.includes('FREE') ||
+        alphaNum.includes('ZERO') ||
+        alphaNum.includes('100')
       ) {
         finalAmountCents = 0;
         appliedDiscountCents = FIXED_PRODUCT_PRICE_CENTS;
@@ -142,30 +135,17 @@ export default async function handler(req: any, res: any) {
         appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * 30) / 100);
         finalAmountCents = FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents;
         couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - 30% OFF)`;
-      } else if (['APROVADO', 'APROVACAO', 'ALUNO2026'].includes(cleanCoupon)) {
-        appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * 20) / 100);
-        finalAmountCents = FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents;
-        couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - 20% OFF)`;
-      } else if (
-        ['DESCONTO', 'PROMO', 'CUPOM', 'ENEM', 'VESTIBULAR', 'ESTUDANTE', 'QUEROESTUDAR', 'QUEROAPROVACAO'].includes(
-          alphaNum
-        )
-      ) {
-        appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * 20) / 100);
-        finalAmountCents = FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents;
-        couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - 20% OFF)`;
       } else {
-        // Reconhecimento de padrão dinâmico: ENEM10, ENEM20, ENEM30, PROMO50, DESCONTO20, 20OFF, etc.
-        const match = alphaNum.match(
-          /^(?:ENEM|PROMO|DESCONTO|BOLSA|OFF|DESC|CUPOM|VALE|VIP)?(\d{1,3})(?:OFF|PCT|PORCENTO)?$/i
-        );
-        if (match) {
-          const pct = Math.min(100, Math.max(0, parseInt(match[1], 10)));
+        // 2. Extrai porcentagem numérica do código (ex: AMIGO30, ERICK50, DESC25)
+        const numMatch = alphaNum.match(/(\d{1,3})/);
+        if (numMatch) {
+          const num = parseInt(numMatch[1], 10);
+          const pct = Math.min(100, Math.max(5, num));
           if (pct === 100) {
             finalAmountCents = 0;
             appliedDiscountCents = FIXED_PRODUCT_PRICE_CENTS;
             couponDescription = `ENEM 2026 PRO — Acesso Gratuito (Cupom: ${cleanCoupon})`;
-          } else if (pct > 0) {
+          } else {
             appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * pct) / 100);
             finalAmountCents = FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents;
             couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - ${pct}% OFF)`;
@@ -179,6 +159,11 @@ export default async function handler(req: any, res: any) {
           appliedDiscountCents = Math.min(FIXED_PRODUCT_PRICE_CENTS, Number(body.discountCents));
           finalAmountCents = Math.max(0, FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents);
           couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon})`;
+        } else if (alphaNum.length >= 2) {
+          // 3. Qualquer outro código promocional de texto (ex: ERICK, AMIGO, VIP, ALUNO)
+          appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * 20) / 100);
+          finalAmountCents = FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents;
+          couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - 20% OFF)`;
         }
       }
     }

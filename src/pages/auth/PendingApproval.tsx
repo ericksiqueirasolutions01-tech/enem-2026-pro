@@ -349,7 +349,16 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
                       </button>
                     </div>
                     {couponFeedback && (
-                      <p className="text-[11px] text-rose-400 font-bold">{couponFeedback}</p>
+                      <div className="flex items-center justify-between text-[11px] text-rose-400 font-bold">
+                        <span>{couponFeedback}</span>
+                        <button
+                          type="button"
+                          onClick={() => window.location.reload()}
+                          className="text-brand-400 hover:text-brand-300 underline cursor-pointer text-[10px]"
+                        >
+                          Recarregar página
+                        </button>
+                      </div>
                     )}
                   </form>
                 )
