@@ -139,9 +139,21 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, onLoginSuccess }) => {
         </div>
 
         {error && (
-          <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-2 animate-shake">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-            <span>{error}</span>
+          <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex flex-col gap-2 animate-shake">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+              <span>{error}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setResetEmail(email);
+                setShowResetModal(true);
+              }}
+              className="text-left text-[11px] font-bold text-brand-400 hover:text-brand-300 underline cursor-pointer"
+            >
+              Clique aqui para redefinir ou criar sua senha agora &rarr;
+            </button>
           </div>
         )}
 
@@ -223,6 +235,9 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, onLoginSuccess }) => {
             >
               Criar Conta
             </button>
+          </p>
+          <p className="text-[10px] text-slate-500 font-mono tracking-wider">
+            SISTEMA ATUALIZADO • REDEFINIÇÃO ATIVA
           </p>
         </div>
       </div>
