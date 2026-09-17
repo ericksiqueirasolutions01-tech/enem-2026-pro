@@ -91,6 +91,13 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
       }
 
       if (res.success && res.checkoutUrl) {
+        if (res.orderId) {
+          try {
+            localStorage.setItem('enem2026_last_order_id', res.orderId);
+          } catch {
+            // ignore
+          }
+        }
         // Redireciona o aluno diretamente para o checkout hospedado oficial da InfinitePay
         window.location.href = res.checkoutUrl;
       } else {
@@ -109,6 +116,20 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
     setCheckoutError(null);
 
     try {
+      const lastOrderId = localStorage.getItem('enem2026_last_order_id') || undefined;
+
+      // 1. Tenta verificar o status ativo do pagamento via API
+      let paymentConfirmed = false;
+      try {
+        const payStatus = await paymentRepository.checkPaymentStatus(lastOrderId);
+        if (payStatus.isPaid || payStatus.userStatus === 'APROVADO') {
+          paymentConfirmed = true;
+        }
+      } catch (payErr) {
+        console.warn('[PendingApproval] Erro ao consultar status do pagamento:', payErr);
+      }
+
+      // 2. Consulta a sessão atualizada do usuário
       const freshUser = await authRepository.getCurrentSessionUser();
       setIsChecking(false);
 
@@ -117,16 +138,22 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
         return;
       }
 
+      if (paymentConfirmed || freshUser.status === 'APROVADO') {
+        freshUser.status = 'APROVADO';
+        db.setCurrentUser(freshUser, true);
+        setCurrentUser(freshUser);
+        setCheckedMessage('Parabéns! Seu pagamento foi confirmado e seu acesso está liberado!');
+        setTimeout(() => onNavigate('dashboard'), 1000);
+        return;
+      }
+
       db.setCurrentUser(freshUser, true);
       setCurrentUser(freshUser);
 
-      if (freshUser.status === 'APROVADO') {
-        setCheckedMessage('Parabéns! Seu pagamento foi confirmado e seu acesso está liberado!');
-        setTimeout(() => onNavigate('dashboard'), 1000);
-      } else if (freshUser.status === 'REPROVADO') {
+      if (freshUser.status === 'REPROVADO') {
         setCheckedMessage('Seu cadastro não foi aprovado pela administração.');
       } else {
-        setCheckedMessage('Pagamento ou aprovação ainda não identificados. Se já pagou, aguarde alguns instantes.');
+        setCheckedMessage('Pagamento ou aprovação ainda não identificados. Se já pagou, aguarde alguns instantes ou atualize a página.');
       }
     } catch {
       setIsChecking(false);
