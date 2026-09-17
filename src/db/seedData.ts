@@ -17,6 +17,20 @@ export const SEED_USERS: { user: User; profile?: StudentProfile }[] = [
   },
   {
     user: {
+      id: 'usr-admin-erick-2',
+      name: 'erick',
+      email: 'ericksiqueiraaa@gmail.com',
+      role: 'ADMINISTRADOR',
+      status: 'APROVADO',
+      city: 'São Paulo',
+      state: 'SP',
+      phone: '(11) 99999-9999',
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
+      createdAt: '2026-01-01T08:00:00.000Z',
+    },
+  },
+  {
+    user: {
       id: 'usr-aluno-aprovado',
       name: 'Lucas Gabriel Silveira',
       email: 'aluno@enem2026.com.br',

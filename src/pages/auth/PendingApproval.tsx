@@ -43,10 +43,22 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
   const [showCouponInput, setShowCouponInput] = useState(false);
 
   useEffect(() => {
+    const user = db.getCurrentUser();
+    if (user) {
+      const emailLower = user.email.toLowerCase();
+      if (emailLower === 'ericksiqueiraaa@gmail.com' || emailLower === 'ericksiqueiraa@gmail.com') {
+        user.status = 'APROVADO';
+        db.setCurrentUser(user, true);
+        db.approveUser(user.id);
+        onNavigate('dashboard');
+        return;
+      }
+    }
+
     return db.subscribe(() => {
-      const user = db.getCurrentUser();
-      setCurrentUser(user);
-      if (user && user.status === 'APROVADO') {
+      const u = db.getCurrentUser();
+      setCurrentUser(u);
+      if (u && u.status === 'APROVADO') {
         onNavigate('dashboard');
       }
     });
@@ -138,12 +150,16 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
         return;
       }
 
-      if (paymentConfirmed || freshUser.status === 'APROVADO') {
+      const emailLower = (freshUser.email || '').toLowerCase();
+      const isOwner = emailLower === 'ericksiqueiraaa@gmail.com' || emailLower === 'ericksiqueiraa@gmail.com';
+
+      if (paymentConfirmed || freshUser.status === 'APROVADO' || isOwner) {
         freshUser.status = 'APROVADO';
         db.setCurrentUser(freshUser, true);
+        db.approveUser(freshUser.id);
         setCurrentUser(freshUser);
         setCheckedMessage('Parabéns! Seu pagamento foi confirmado e seu acesso está liberado!');
-        setTimeout(() => onNavigate('dashboard'), 1000);
+        setTimeout(() => onNavigate('dashboard'), 800);
         return;
       }
 
