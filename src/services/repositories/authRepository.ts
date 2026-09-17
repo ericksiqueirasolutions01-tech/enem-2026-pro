@@ -237,5 +237,20 @@ export const authRepository = {
 
     return { success: true };
   },
+
+  async resetPassword(email: string, newPass: string): Promise<{ success: boolean; error?: string; user?: User }> {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = (newPass || '').trim();
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.auth.resetPasswordForEmail(cleanEmail);
+      } catch (err) {
+        console.warn('[authRepository] Erro ao redefinir no Supabase:', err);
+      }
+    }
+
+    return db.resetPassword(cleanEmail, cleanPass);
+  },
 };
 

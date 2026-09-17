@@ -37,6 +37,7 @@ export const PaymentSuccess: React.FC = () => {
         freshUser = await authRepository.getCurrentSessionUser();
         if (freshUser) {
           db.setCurrentUser(freshUser, true);
+          setCurrentUser(freshUser);
           if (freshUser.status === 'APROVADO') {
             setIsApproved(true);
             setIsVerifying(false);
@@ -108,14 +109,40 @@ export const PaymentSuccess: React.FC = () => {
     return () => clearTimeout(timer);
   }, [orderId, attempts]);
 
+  const [currentUser, setCurrentUser] = useState<any>(() => db.getCurrentUser());
+  const [setupEmail, setSetupEmail] = useState('');
+  const [setupPassword, setSetupPassword] = useState('');
+  const [setupError, setSetupError] = useState<string | null>(null);
+
   const handleEntrarNaPlataforma = () => {
-    const u = db.getCurrentUser();
+    let u = currentUser || db.getCurrentUser();
+
+    // Se o usuário não estiver na sessão mas informou e-mail e senha no formulário rápido
+    if (!u && setupEmail.trim() && setupPassword.trim()) {
+      if (setupPassword.length < 4) {
+        setSetupError('A senha deve conter no mínimo 4 caracteres.');
+        return;
+      }
+      const cleanEmail = setupEmail.trim().toLowerCase();
+      const res = db.resetPassword(cleanEmail, setupPassword.trim());
+      if (res.success && res.user) {
+        u = res.user;
+        u.status = 'APROVADO';
+        db.setCurrentUser(u, true);
+        db.approveUser(u.id);
+        navigate('/app');
+        return;
+      }
+    }
+
     if (u) {
       u.status = 'APROVADO';
       db.setCurrentUser(u, true);
       db.approveUser(u.id);
+      navigate('/app');
+    } else {
+      navigate('/login');
     }
-    navigate('/app');
   };
 
   return (
@@ -171,13 +198,55 @@ export const PaymentSuccess: React.FC = () => {
         {/* Ações */}
         <div className="space-y-3 pt-2">
           {isApproved ? (
-            <button
-              onClick={handleEntrarNaPlataforma}
-              className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:opacity-95 text-white font-black text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/30 active:scale-98"
-            >
-              <span>ENTRAR NA PLATAFORMA</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            currentUser ? (
+              <button
+                onClick={handleEntrarNaPlataforma}
+                className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:opacity-95 text-white font-black text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/30 active:scale-98"
+              >
+                <span>ENTRAR NA PLATAFORMA</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <div className="text-left space-y-3 p-4 bg-slate-800/80 rounded-2xl border border-slate-700">
+                <p className="text-xs font-bold text-slate-200">
+                  Informe seu e-mail e crie sua senha para entrar agora:
+                </p>
+                {setupError && (
+                  <div className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                    <span>{setupError}</span>
+                  </div>
+                )}
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">E-mail</label>
+                  <input
+                    type="email"
+                    value={setupEmail}
+                    onChange={(e) => setSetupEmail(e.target.value)}
+                    placeholder="seu.email@exemplo.com"
+                    className="w-full text-xs font-bold text-white bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Senha</label>
+                  <input
+                    type="password"
+                    value={setupPassword}
+                    onChange={(e) => setSetupPassword(e.target.value)}
+                    placeholder="Mínimo 4 caracteres"
+                    className="w-full text-xs font-bold text-white bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleEntrarNaPlataforma}
+                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:opacity-95 text-white font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/30"
+                >
+                  <span>Salvar Senha e Entrar</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            )
           ) : (
             <div className="space-y-2">
               <button

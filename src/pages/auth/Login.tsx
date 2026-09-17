@@ -7,6 +7,9 @@ import {
   ArrowRight,
   AlertCircle,
   ArrowLeft,
+  KeyRound,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 
 import { authRepository } from '../../services/repositories/authRepository';
@@ -22,6 +25,60 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, onLoginSuccess }) => {
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Estados do Modal de Esqueci / Redefinir Senha
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetSuccess, setResetSuccess] = useState<string | null>(null);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handleResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError(null);
+    setResetSuccess(null);
+
+    const cleanEmail = resetEmail.trim().toLowerCase();
+    if (!cleanEmail) {
+      setResetError('Informe o e-mail cadastrado.');
+      return;
+    }
+    if (newPassword.length < 4) {
+      setResetError('A nova senha deve ter no mínimo 4 caracteres.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setResetError('As senhas digitadas não coincidem.');
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      const res = await authRepository.resetPassword(cleanEmail, newPassword);
+      setResetLoading(false);
+      if (res.success && res.user) {
+        setResetSuccess('Senha atualizada com sucesso! Acessando sua conta...');
+        setEmail(cleanEmail);
+        setPassword(newPassword);
+        setTimeout(() => {
+          setShowResetModal(false);
+          onLoginSuccess();
+          if (res.user?.role === 'ADMINISTRADOR') {
+            onNavigate('admin');
+          } else {
+            onNavigate('dashboard');
+          }
+        }, 1000);
+      } else {
+        setResetError(res.error || 'Não foi possível redefinir a senha.');
+      }
+    } catch (err: any) {
+      setResetLoading(false);
+      setResetError(err?.message || 'Erro ao processar a redefinição.');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,7 +193,10 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, onLoginSuccess }) => {
 
             <button
               type="button"
-              onClick={() => alert('Para redefinir sua senha, entre em contato com o suporte institucional ou a coordenação pedagógica.')}
+              onClick={() => {
+                setResetEmail(email);
+                setShowResetModal(true);
+              }}
               className="text-brand-400 hover:text-brand-300 font-semibold cursor-pointer"
             >
               Esqueci a senha
@@ -166,6 +226,117 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, onLoginSuccess }) => {
           </p>
         </div>
       </div>
+
+      {/* Modal Interativo de Redefinição de Senha */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="max-w-md w-full bg-slate-900 border border-slate-700 rounded-3xl p-6 sm:p-7 shadow-2xl space-y-5 relative">
+            <button
+              type="button"
+              onClick={() => setShowResetModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-brand-500/20 border border-brand-500/30 flex items-center justify-center text-brand-400">
+                <KeyRound className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white">Redefinir Senha de Acesso</h3>
+                <p className="text-xs text-slate-400">
+                  Atualize sua credencial para acessar imediatamente.
+                </p>
+              </div>
+            </div>
+
+            {resetError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{resetError}</span>
+              </div>
+            )}
+
+            {resetSuccess && (
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>{resetSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleResetSubmit} className="space-y-3.5">
+              <div>
+                <label className="text-[11px] font-black uppercase text-slate-300 block mb-1">
+                  E-mail de Cadastro
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    required
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="seu.email@exemplo.com"
+                    className="w-full text-xs font-bold text-white bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 focus:border-brand-500 focus:outline-none placeholder:text-slate-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-black uppercase text-slate-300 block mb-1">
+                  Nova Senha Desejada
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Mínimo 4 caracteres"
+                    className="w-full text-xs font-bold text-white bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 focus:border-brand-500 focus:outline-none placeholder:text-slate-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-black uppercase text-slate-300 block mb-1">
+                  Confirmar Nova Senha
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repita a nova senha"
+                    className="w-full text-xs font-bold text-white bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 focus:border-brand-500 focus:outline-none placeholder:text-slate-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  className="w-1/2 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={resetLoading}
+                  className="w-1/2 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 active:bg-brand-700 text-white font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-brand-600/30 cursor-pointer disabled:opacity-50"
+                >
+                  {resetLoading ? 'Salvando...' : 'Salvar e Entrar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
