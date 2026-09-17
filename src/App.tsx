@@ -12,6 +12,8 @@ import { Login } from './pages/auth/Login';
 import { Register } from './pages/auth/Register';
 import { PendingApproval } from './pages/auth/PendingApproval';
 import { Onboarding } from './pages/auth/Onboarding';
+import { PaymentSuccess } from './pages/public/PaymentSuccess';
+import { PaymentPending } from './pages/public/PaymentPending';
 
 // Student Core Pages
 import { Dashboard } from './pages/student/Dashboard';
@@ -305,6 +307,16 @@ export function App() {
             element={
               <PendingApproval currentUser={currentUser} onNavigate={handleNavigate} />
             }
+          />
+
+          {/* Rotas Públicas de Retorno de Pagamento (Gate 10) */}
+          <Route
+            path="/payment/success"
+            element={<PaymentSuccess />}
+          />
+          <Route
+            path="/payment/pending"
+            element={<PaymentPending />}
           />
 
           {/* Onboarding do Aluno */}

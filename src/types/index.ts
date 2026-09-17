@@ -443,3 +443,64 @@ export interface LibraryFolder {
   order: number;
 }
 
+// ============================================================================
+// TIPOS DE PAGAMENTO E CHECKOUT (INFINITEPAY / CLOUDWALK)
+// ============================================================================
+
+export type OrderStatus = 'PENDING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'REFUNDED' | 'EXPIRED';
+
+export interface Order {
+  id: string;
+  userId: string;
+  userEmail?: string;
+  userName?: string;
+  provider: 'infinitepay';
+  amountCents: number;
+  currency: string;
+  status: OrderStatus;
+  externalReference: string; // order_nsu
+  providerPaymentId?: string | null; // transaction_nsu
+  providerSlug?: string | null; // invoice_slug
+  checkoutUrl?: string | null;
+  receiptUrl?: string | null;
+  captureMethod?: 'pix' | 'credit_card' | string | null;
+  paidAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentEvent {
+  id: string;
+  provider: string;
+  providerEventId?: string | null;
+  providerPaymentId?: string | null;
+  eventType?: string | null;
+  payloadHash: string;
+  payload: Record<string, unknown>;
+  processed: boolean;
+  processedAt?: string | null;
+  createdAt: string;
+}
+
+export interface CreateCheckoutResponse {
+  success: boolean;
+  checkoutUrl?: string;
+  orderId?: string;
+  externalReference?: string;
+  status?: OrderStatus;
+  error?: string;
+  message?: string;
+}
+
+export interface PaymentStatusResponse {
+  success: boolean;
+  orderId: string;
+  status: OrderStatus;
+  isPaid: boolean;
+  userStatus: UserStatus;
+  paidAt?: string | null;
+  receiptUrl?: string | null;
+  captureMethod?: string | null;
+  message?: string;
+}
+

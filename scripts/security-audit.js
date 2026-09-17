@@ -142,3 +142,4 @@ if (hasFailures) {
   console.log('\x1b[32m✅ TODAS AS POLÍTICAS DE SEGURANÇA E CONFORMIDADE FORAM APROVADAS COM SUCESSO!\x1b[0m\n');
   process.exit(0);
 }
+

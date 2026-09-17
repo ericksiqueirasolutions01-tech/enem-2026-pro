@@ -15,7 +15,9 @@ import {
   ExamDay,
   LibraryAreaId,
   MaterialContentType,
+  Order,
 } from '../../types';
+import { paymentRepository } from '../../services/repositories/paymentRepository';
 import { ENEM_CURRICULUM } from '../../db/curriculumData';
 import type { DriveMaterial } from '../../db/driveMaterialsData';
 import {
@@ -60,6 +62,9 @@ import {
   FolderDown,
   FolderPlus,
   Folder,
+  CreditCard,
+  QrCode,
+  RefreshCw,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -70,6 +75,7 @@ interface AdminDashboardProps {
 type AdminTab =
   | 'METRICAS'
   | 'PENDENTES'
+  | 'VENDAS'
   | 'MATERIAS'
   | 'BIBLIOTECA'
   | 'QUESTOES'
@@ -92,15 +98,54 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
   const [pendingFilter, setPendingFilter] = useState<'PENDENTES' | 'APROVADOS' | 'REPROVADOS' | 'TODOS'>('PENDENTES');
   const [adminToast, setAdminToast] = useState<string | null>(null);
 
+  // Estados para Gestão de Vendas / InfinitePay
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersFilter, setOrdersFilter] = useState<'TODOS' | 'PAID' | 'PENDING' | 'FAILED'>('TODOS');
+  const [isReconciling, setIsReconciling] = useState<string | null>(null);
+
+  const fetchOrders = async () => {
+    setOrdersLoading(true);
+    try {
+      const data = await paymentRepository.getOrders();
+      setOrders(data);
+    } catch (err) {
+      console.error('Erro ao buscar pedidos:', err);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
     adminRepository.getUsers().then((res) => {
       if (isMounted && res.length > 0) setUsers(res);
     });
+    fetchOrders();
     return () => {
       isMounted = false;
     };
   }, []);
+
+  const handleReconcileOrder = async (orderId: string) => {
+    setIsReconciling(orderId);
+    try {
+      const res = await paymentRepository.reconcileOrder(orderId);
+      if (res.status === 'PAID' || res.success) {
+        setAdminToast(`Pedido ${orderId.slice(0, 8)} conciliado com sucesso! Usuário ativado.`);
+      } else {
+        setAdminToast(res.message || `Status do pedido atualizado.`);
+      }
+      await fetchOrders();
+      const updatedUsers = await adminRepository.getUsers();
+      setUsers(updatedUsers);
+    } catch (err: any) {
+      setAdminToast(`Erro na reconciliação: ${err.message || err}`);
+    } finally {
+      setIsReconciling(null);
+      setTimeout(() => setAdminToast(null), 4000);
+    }
+  };
 
   // Modais de Criação / Edição
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
@@ -609,6 +654,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
             label: `Usuários Pendentes (${users.filter((u) => u.status === 'PENDENTE_APROVACAO').length})`,
             icon: UserCheck,
           },
+          {
+            id: 'VENDAS',
+            label: `Vendas & InfinitePay (${orders.filter((o) => o.status === 'PAID').length})`,
+            icon: CreditCard,
+          },
           { id: 'MATERIAS', label: `Matérias & Conteúdos (15)`, icon: BookOpen },
           { id: 'BIBLIOTECA', label: `Biblioteca & Materiais (${428 + customMaterials.length})`, icon: FolderDown },
           { id: 'QUESTOES', label: `Banco de Questões (${questions.length})`, icon: HelpCircle },
@@ -987,6 +1037,286 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
                     )}
                   </div>
                 ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB: VENDAS & INFINITEPAY */}
+      {/* ========================================================================= */}
+      {activeTab === 'VENDAS' && (
+        <div className="space-y-6">
+          {/* Header Card */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-black border border-emerald-200 dark:border-emerald-800">
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>Gateway Oficial InfinitePay • R$ 37,00</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                Vendas & Transações InfinitePay
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                Acompanhamento em tempo real de pedidos gerados via checkout oficial InfinitePay (Pix e Cartão). Liberação 100% automatizada e idempotente via webhook seguro e conciliação direta com a CloudWalk.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                onClick={fetchOrders}
+                disabled={ordersLoading}
+                className="px-4 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 ${ordersLoading ? 'animate-spin text-emerald-500' : ''}`} />
+                <span>{ordersLoading ? 'Atualizando...' : 'Atualizar Dados'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Quick KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
+                <span>Total Faturado</span>
+                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-2xl font-black text-slate-900 dark:text-white">
+                R${' '}
+                {(
+                  orders
+                    .filter((o) => o.status === 'PAID')
+                    .reduce((acc, o) => acc + (o.amountCents || 3700), 0) / 100
+                ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">Acessos confirmados e liberados</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
+                <span>Vendas Pagas</span>
+                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                {orders.filter((o) => o.status === 'PAID').length}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">Alunos ativos no ENEM 2026 PRO</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
+                <span>Aguardando Pagamento</span>
+                <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600">
+                  <Clock className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                {orders.filter((o) => o.status === 'PENDING').length}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">Links gerados no checkout</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
+                <span>Preço do Acesso</span>
+                <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600">
+                  <Shield className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-2xl font-black text-slate-900 dark:text-white">
+                R$ 37,00
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">Handle: erick-siqueira-bg2</p>
+            </div>
+          </div>
+
+          {/* Filter & Search */}
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
+              {[
+                { id: 'TODOS', label: 'Todas as Vendas' },
+                { id: 'PAID', label: 'Pagas' },
+                { id: 'PENDING', label: 'Pendentes' },
+                { id: 'FAILED', label: 'Falhas / Canceladas' },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setOrdersFilter(f.id as any)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                    ordersFilter === f.id
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full sm:w-72">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Buscar por ID, NSU..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+          </div>
+
+          {/* Orders Table / List */}
+          {(() => {
+            const filtered = orders.filter((o) => {
+              if (ordersFilter === 'PAID' && o.status !== 'PAID') return false;
+              if (ordersFilter === 'PENDING' && o.status !== 'PENDING') return false;
+              if (ordersFilter === 'FAILED' && o.status !== 'FAILED') return false;
+              if (searchQuery.trim()) {
+                const q = searchQuery.toLowerCase();
+                return (
+                  o.id.toLowerCase().includes(q) ||
+                  o.externalReference.toLowerCase().includes(q) ||
+                  (o.providerPaymentId && o.providerPaymentId.toLowerCase().includes(q))
+                );
+              }
+              return true;
+            });
+
+            if (filtered.length === 0) {
+              return (
+                <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
+                  <CreditCard className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                  <h3 className="text-base font-bold text-slate-700 dark:text-slate-300">
+                    Nenhum pedido encontrado
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                    {ordersFilter !== 'TODOS'
+                      ? 'Nenhum pedido corresponde ao filtro selecionado.'
+                      : 'Quando novos alunos gerarem links de checkout ou pagarem via InfinitePay, os registros aparecerão aqui.'}
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="overflow-x-auto bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-400">
+                      <th className="py-4 px-6">Identificador / NSU</th>
+                      <th className="py-4 px-6">Valor</th>
+                      <th className="py-4 px-6">Método</th>
+                      <th className="py-4 px-6">Status</th>
+                      <th className="py-4 px-6">Data</th>
+                      <th className="py-4 px-6 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                    {filtered.map((order) => {
+                      const isPaid = order.status === 'PAID';
+                      const isPending = order.status === 'PENDING';
+                      const isFailed = order.status === 'FAILED';
+
+                      return (
+                        <tr key={order.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                          <td className="py-4 px-6">
+                            <div className="font-bold text-slate-900 dark:text-white font-mono text-[11px]">
+                              {order.externalReference}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              ID: {order.id.slice(0, 8)}...
+                            </div>
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="font-black text-slate-900 dark:text-white">
+                              R${' '}
+                              {((order.amountCents || 3700) / 100).toLocaleString('pt-BR', {
+                                minimumFractionDigits: 2,
+                              })}
+                            </div>
+                            <div className="text-[10px] text-slate-400">1x vitalício</div>
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold">
+                              {order.captureMethod === 'pix' || order.captureMethod === 'PIX' ? (
+                                <>
+                                  <QrCode className="w-3 h-3 text-emerald-500" />
+                                  <span>Pix</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CreditCard className="w-3 h-3 text-indigo-500" />
+                                  <span>{order.captureMethod || 'InfinitePay'}</span>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-4 px-6">
+                            {isPaid && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                <CheckCircle2 className="w-3 h-3" />
+                                PAGO
+                              </span>
+                            )}
+                            {isPending && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                                <Clock className="w-3 h-3" />
+                                PENDENTE
+                              </span>
+                            )}
+                            {isFailed && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
+                                <AlertTriangle className="w-3 h-3" />
+                                FALHOU
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-4 px-6 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                            {new Date(order.createdAt).toLocaleString('pt-BR')}
+                          </td>
+                          <td className="py-4 px-6 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {isPending && (
+                                <button
+                                  onClick={() => handleReconcileOrder(order.id)}
+                                  disabled={isReconciling === order.id}
+                                  className="px-3 py-1.5 rounded-xl bg-brand-50 dark:bg-brand-950/50 hover:bg-brand-100 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                                  title="Consultar status direto na API InfinitePay"
+                                >
+                                  <RefreshCw
+                                    className={`w-3 h-3 ${
+                                      isReconciling === order.id ? 'animate-spin text-brand-600' : ''
+                                    }`}
+                                  />
+                                  <span>{isReconciling === order.id ? 'Consultando...' : 'Reconciliar'}</span>
+                                </button>
+                              )}
+                              {order.receiptUrl && (
+                                <a
+                                  href={order.receiptUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+                                  title="Ver Comprovante Oficial"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              )}
+                              {isPaid && !order.receiptUrl && (
+                                <span className="text-[11px] font-bold text-emerald-600">Acesso Ativo</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             );
           })()}
