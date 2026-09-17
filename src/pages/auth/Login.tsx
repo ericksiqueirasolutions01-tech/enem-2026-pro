@@ -236,9 +236,22 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, onLoginSuccess }) => {
               Criar Conta
             </button>
           </p>
-          <p className="text-[10px] text-slate-500 font-mono tracking-wider">
-            SISTEMA ATUALIZADO • REDEFINIÇÃO ATIVA
-          </p>
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  localStorage.removeItem('enem2026_current_user_v3');
+                  window.location.href = '/login?v=' + Date.now();
+                } catch {
+                  window.location.reload();
+                }
+              }}
+              className="text-[10px] text-slate-500 hover:text-slate-300 font-mono tracking-wider underline cursor-pointer"
+            >
+              SISTEMA ATUALIZADO • RECARREGAR VERSÃO MAIS RECENTE
+            </button>
+          </div>
         </div>
       </div>
 
