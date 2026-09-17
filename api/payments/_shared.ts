@@ -82,13 +82,27 @@ export function computePayloadHash(payload: unknown): string {
 
 /**
  * Determina a URL base pública da aplicação.
+ * Prioriza domínios de produção para evitar que clientes sejam direcionados
+ * a URLs de preview protegidas por autenticação da Vercel.
  */
 export function getAppBaseUrl(req: any): string {
   if (process.env.APP_URL) {
     return process.env.APP_URL.replace(/\/$/, '');
   }
-  const host = req.headers['x-forwarded-host'] || req.headers.host || 'enem2026pro.vercel.app';
-  const proto = req.headers['x-forwarded-proto'] || 'https';
-  return `${proto}://${host}`;
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.replace(/\/$/, '')}`;
+  }
+
+  const rawHost = req?.headers ? (req.headers['x-forwarded-host'] || req.headers.host || '') : '';
+  const proto = req?.headers ? (req.headers['x-forwarded-proto'] || 'https') : 'https';
+
+  if (rawHost) {
+    return `${proto}://${rawHost}`;
+  }
+
+  return 'https://enem2026pro.vercel.app';
 }
 

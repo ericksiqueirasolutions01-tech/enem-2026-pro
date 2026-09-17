@@ -102,7 +102,7 @@ export const paymentRepository = {
 
     // 2. Gateway Direto Oficial (InfinitePay API Links — CORS liberado pela CloudWalk)
     try {
-      const appUrl = window.location.origin;
+      const appUrl = ((import.meta as any).env?.VITE_APP_URL as string)?.replace(/\/$/, '') || window.location.origin;
       const orderNsu = `enem-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
       const itemDesc = couponCode
         ? `ENEM 2026 PRO — Acesso Completo (Cupom: ${couponCode})`
