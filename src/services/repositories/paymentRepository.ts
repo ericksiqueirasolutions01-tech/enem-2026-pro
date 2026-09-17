@@ -30,8 +30,12 @@ export const paymentRepository = {
     const customerPhone = currentUser?.phone ? currentUser.phone.replace(/\D/g, '') : undefined;
 
     const couponCode = options?.couponCode ? options.couponCode.trim().toUpperCase() : undefined;
-    const finalPriceCents =
+    let finalPriceCents =
       typeof options?.finalPriceCents === 'number' ? options.finalPriceCents : 3700;
+
+    if (finalPriceCents > 0 && finalPriceCents < 100) {
+      finalPriceCents = 100;
+    }
 
     // Se o cupom zerou o valor (100% gratuito / bolsa)
     if (finalPriceCents === 0 && couponCode) {

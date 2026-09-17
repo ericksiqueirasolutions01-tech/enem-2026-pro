@@ -187,6 +187,15 @@ export default async function handler(req: any, res: any) {
       });
     }
 
+    // Regra da adquirente InfinitePay (CloudWalk):
+    // A InfinitePay rejeita qualquer transação comercial com valor inferior a R$ 1,00 (100 centavos).
+    // Se o cupom deixar um valor residual abaixo de R$ 1,00 (ex: 98% = R$ 0,74),
+    // ajusta para o piso de 100 centavos (R$ 1,00) para permitir a criação do link Pix/Cartão.
+    if (finalAmountCents > 0 && finalAmountCents < 100) {
+      finalAmountCents = 100;
+      appliedDiscountCents = FIXED_PRODUCT_PRICE_CENTS - finalAmountCents;
+    }
+
     // 4. Gerar NSU único e fixar valor do pedido
     const orderNsu = `enem-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
     let orderId = orderNsu;

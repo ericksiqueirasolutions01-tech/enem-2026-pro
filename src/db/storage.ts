@@ -1501,7 +1501,16 @@ class StorageService {
       discountCents = Math.min(originalPriceCents, coupon.discountValue);
     }
 
-    const finalPriceCents = Math.max(0, originalPriceCents - discountCents);
+    let finalPriceCents = Math.max(0, originalPriceCents - discountCents);
+
+    // Regra da adquirente InfinitePay / Banco Central:
+    // A InfinitePay exige valor mínimo de R$ 1,00 (100 centavos) para emitir cobranças via Pix ou Cartão.
+    // Se o cupom não for 100% gratuito (R$ 0,00) e o residual ficar entre R$ 0,01 e R$ 0,99,
+    // ajusta o piso para R$ 1,00 para garantir que o link de pagamento seja gerado com sucesso.
+    if (finalPriceCents > 0 && finalPriceCents < 100) {
+      finalPriceCents = 100;
+      discountCents = originalPriceCents - finalPriceCents;
+    }
 
     return {
       valid: true,
