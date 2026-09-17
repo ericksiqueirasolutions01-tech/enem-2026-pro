@@ -102,7 +102,13 @@ export const paymentRepository = {
 
     // 2. Gateway Direto Oficial (InfinitePay API Links — CORS liberado pela CloudWalk)
     try {
-      const appUrl = ((import.meta as any).env?.VITE_APP_URL as string)?.replace(/\/$/, '') || window.location.origin;
+      const appUrl =
+        ((import.meta as any).env?.VITE_APP_URL as string)?.replace(/\/$/, '') ||
+        (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
+          ? 'https://enem-2026-pro.vercel.app'
+          : typeof window !== 'undefined'
+          ? window.location.origin
+          : 'https://enem-2026-pro.vercel.app');
       const orderNsu = `enem-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
       const itemDesc = couponCode
         ? `ENEM 2026 PRO — Acesso Completo (Cupom: ${couponCode})`
