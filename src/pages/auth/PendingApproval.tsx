@@ -40,7 +40,7 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
   const [couponCodeInput, setCouponCodeInput] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<CouponValidationResult | null>(null);
   const [couponFeedback, setCouponFeedback] = useState<string | null>(null);
-  const [showCouponInput, setShowCouponInput] = useState(false);
+  const [showCouponInput, setShowCouponInput] = useState(true);
 
   useEffect(() => {
     const user = db.getCurrentUser();
@@ -64,13 +64,18 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
     });
   }, [onNavigate]);
 
-  const handleApplyCoupon = (e?: React.FormEvent) => {
+  const handleApplyCoupon = (e?: React.FormEvent, directCode?: string) => {
     if (e) e.preventDefault();
-    if (!couponCodeInput.trim()) return;
+    const codeToValidate = (directCode || couponCodeInput || '').trim();
+    if (!codeToValidate) {
+      setCouponFeedback('Digite o código do seu cupom.');
+      return;
+    }
 
-    const result = db.validateCoupon(couponCodeInput.trim(), 3700);
+    const result = db.validateCoupon(codeToValidate, 3700);
     if (result.valid) {
       setAppliedCoupon(result);
+      setCouponCodeInput(result.coupon?.code || codeToValidate.toUpperCase());
       setCouponFeedback(null);
       setCheckoutError(null);
     } else {
@@ -307,9 +312,9 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
                     <div className="flex gap-2">
                       <input
                         type="text"
-                        placeholder="Ex: ENEM10, ENEM20, BOLSA100"
+                        placeholder="Ex: BOLSA100, ENEM20, PROMO50"
                         value={couponCodeInput}
-                        onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
+                        onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase().replace(/\s+/g, ''))}
                         className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold uppercase tracking-wider text-white placeholder:text-slate-500 focus:outline-none focus:border-brand-500"
                       />
                       <button
@@ -317,6 +322,30 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
                         className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-xl cursor-pointer transition-colors"
                       >
                         Aplicar
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1.5 pt-1 text-[11px] text-slate-400 flex-wrap">
+                      <span className="text-[10px] text-slate-500">Exemplos:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyCoupon(undefined, 'BOLSA100')}
+                        className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-mono font-bold hover:bg-emerald-500/25 transition-colors cursor-pointer"
+                      >
+                        BOLSA100
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyCoupon(undefined, 'ENEM20')}
+                        className="px-2 py-0.5 rounded-md bg-brand-500/15 text-brand-300 border border-brand-500/30 text-[10px] font-mono font-bold hover:bg-brand-500/25 transition-colors cursor-pointer"
+                      >
+                        ENEM20
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyCoupon(undefined, 'PROMO50')}
+                        className="px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-300 border border-purple-500/30 text-[10px] font-mono font-bold hover:bg-purple-500/25 transition-colors cursor-pointer"
+                      >
+                        PROMO50
                       </button>
                     </div>
                     {couponFeedback && (
