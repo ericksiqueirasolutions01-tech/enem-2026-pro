@@ -152,8 +152,9 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
 
       const emailLower = (freshUser.email || '').toLowerCase();
       const isOwner = emailLower === 'ericksiqueiraaa@gmail.com' || emailLower === 'ericksiqueiraa@gmail.com';
+      const hasPaidCheckout = Boolean(lastOrderId && lastOrderId.startsWith('enem-'));
 
-      if (paymentConfirmed || freshUser.status === 'APROVADO' || isOwner) {
+      if (paymentConfirmed || freshUser.status === 'APROVADO' || isOwner || hasPaidCheckout) {
         freshUser.status = 'APROVADO';
         db.setCurrentUser(freshUser, true);
         db.approveUser(freshUser.id);

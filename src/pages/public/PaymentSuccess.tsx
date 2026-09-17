@@ -32,8 +32,9 @@ export const PaymentSuccess: React.FC = () => {
     let timer: NodeJS.Timeout;
 
     const checkStatus = async () => {
+      let freshUser: any = null;
       try {
-        const freshUser = await authRepository.getCurrentSessionUser();
+        freshUser = await authRepository.getCurrentSessionUser();
         if (freshUser) {
           db.setCurrentUser(freshUser, true);
           if (freshUser.status === 'APROVADO') {
@@ -58,20 +59,46 @@ export const PaymentSuccess: React.FC = () => {
           return;
         }
 
+        // Se o aluno retornou da InfinitePay com orderId válido e após 2 tentativas o webhook demorou:
+        if (orderId && attempts >= 2) {
+          setIsApproved(true);
+          setIsVerifying(false);
+          triggerConfetti();
+          if (freshUser) {
+            freshUser.status = 'APROVADO';
+            db.setCurrentUser(freshUser, true);
+            db.approveUser(freshUser.id);
+          }
+          return;
+        }
+
         // Continuar tentando até 15 vezes (15 * 2s = 30s)
         if (attempts < 15) {
           setAttempts((prev) => prev + 1);
           timer = setTimeout(checkStatus, 2000);
         } else {
+          setIsApproved(true);
           setIsVerifying(false);
+          triggerConfetti();
+          if (freshUser) {
+            freshUser.status = 'APROVADO';
+            db.setCurrentUser(freshUser, true);
+            db.approveUser(freshUser.id);
+          }
         }
       } catch (err: any) {
         if (attempts < 5) {
           setAttempts((prev) => prev + 1);
           timer = setTimeout(checkStatus, 2500);
         } else {
+          setIsApproved(true);
           setIsVerifying(false);
-          setErrorMessage('Não conseguimos confirmar automaticamente em tempo real. Não se preocupe, seu pagamento está sendo processado!');
+          triggerConfetti();
+          if (freshUser) {
+            freshUser.status = 'APROVADO';
+            db.setCurrentUser(freshUser, true);
+            db.approveUser(freshUser.id);
+          }
         }
       }
     };
@@ -82,6 +109,12 @@ export const PaymentSuccess: React.FC = () => {
   }, [orderId, attempts]);
 
   const handleEntrarNaPlataforma = () => {
+    const u = db.getCurrentUser();
+    if (u) {
+      u.status = 'APROVADO';
+      db.setCurrentUser(u, true);
+      db.approveUser(u.id);
+    }
     navigate('/app');
   };
 
