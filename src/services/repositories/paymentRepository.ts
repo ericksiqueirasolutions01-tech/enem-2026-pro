@@ -1,23 +1,26 @@
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
+import { db } from '../../db/storage';
 import { CreateCheckoutResponse, PaymentStatusResponse, Order, OrderStatus } from '../../types';
 
 export const paymentRepository = {
   /**
    * Solicita a criação do link de checkout InfinitePay (R$ 37,00) para o usuário autenticado.
+   * Funciona tanto com Supabase Auth quanto com sessão local/dev.
    */
   async createCheckoutLink(): Promise<CreateCheckoutResponse> {
-    if (!isSupabaseConfigured || !supabase) {
-      return {
-        success: false,
-        error: 'CONFIG_ERROR',
-        message: 'Serviço de autenticação não configurado.',
-      };
+    let token: string | undefined;
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        token = sessionData.session?.access_token;
+      } catch (err) {
+        console.warn('[paymentRepository] Erro ao obter sessão Supabase:', err);
+      }
     }
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-
-    if (!token) {
+    const currentUser = db.getCurrentUser();
+    if (!token && !currentUser) {
       return {
         success: false,
         error: 'AUTH_REQUIRED',
@@ -26,12 +29,22 @@ export const paymentRepository = {
     }
 
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const res = await fetch('/api/payments/create', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
+        body: JSON.stringify({
+          userId: currentUser?.id,
+          name: currentUser?.name,
+          email: currentUser?.email,
+          phone: currentUser?.phone,
+        }),
       });
 
       const data = await res.json();
@@ -41,7 +54,7 @@ export const paymentRepository = {
       return {
         success: false,
         error: 'NETWORK_ERROR',
-        message: err?.message || 'Falha de comunicação com o servidor.',
+        message: err?.message || 'Falha de comunicação com o servidor de pagamento.',
       };
     }
   },
@@ -50,31 +63,46 @@ export const paymentRepository = {
    * Consulta o status de um pedido específico ou do pedido mais recente do usuário.
    */
   async checkPaymentStatus(orderId?: string): Promise<PaymentStatusResponse> {
-    if (!isSupabaseConfigured || !supabase) {
-      throw new Error('Supabase não configurado.');
+    let token: string | undefined;
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        token = sessionData.session?.access_token;
+      } catch (err) {
+        console.warn('[paymentRepository] Erro ao obter sessão Supabase:', err);
+      }
     }
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-
-    if (!token) {
-      throw new Error('Usuário não autenticado.');
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     const url = orderId ? `/api/payments/status?order_id=${encodeURIComponent(orderId)}` : '/api/payments/status';
 
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers,
+      });
 
-    if (!res.ok) {
-      throw new Error(`Erro na consulta: HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`Erro na consulta: HTTP ${res.status}`);
+      }
+
+      return await res.json();
+    } catch {
+      // Fallback gracioso
+      const currentUser = db.getCurrentUser();
+      return {
+        success: true,
+        orderId: orderId || '',
+        status: (currentUser?.status === 'APROVADO' ? 'PAID' : 'PENDING') as OrderStatus,
+        isPaid: currentUser?.status === 'APROVADO',
+        userStatus: currentUser?.status || 'PENDENTE_APROVACAO',
+      };
     }
-
-    return await res.json();
   },
 
   /**
@@ -85,35 +113,39 @@ export const paymentRepository = {
       return [];
     }
 
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*, profiles:user_id(name, email)')
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*, profiles:user_id(name, email)')
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('[paymentRepository] Erro ao listar pedidos:', error);
+      if (error) {
+        console.error('[paymentRepository] Erro ao listar pedidos:', error);
+        return [];
+      }
+
+      return (data || []).map((row: any) => ({
+        id: row.id,
+        userId: row.user_id,
+        userEmail: row.profiles?.email,
+        userName: row.profiles?.name,
+        provider: row.provider,
+        amountCents: row.amount_cents,
+        currency: row.currency,
+        status: row.status,
+        externalReference: row.external_reference,
+        providerPaymentId: row.provider_payment_id,
+        providerSlug: row.provider_slug,
+        checkoutUrl: row.checkout_url,
+        receiptUrl: row.receipt_url,
+        captureMethod: row.capture_method,
+        paidAt: row.paid_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+    } catch {
       return [];
     }
-
-    return (data || []).map((row: any) => ({
-      id: row.id,
-      userId: row.user_id,
-      userEmail: row.profiles?.email,
-      userName: row.profiles?.name,
-      provider: row.provider,
-      amountCents: row.amount_cents,
-      currency: row.currency,
-      status: row.status,
-      externalReference: row.external_reference,
-      providerPaymentId: row.provider_payment_id,
-      providerSlug: row.provider_slug,
-      checkoutUrl: row.checkout_url,
-      receiptUrl: row.receipt_url,
-      captureMethod: row.capture_method,
-      paidAt: row.paid_at,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }));
   },
 
   /**
@@ -131,24 +163,28 @@ export const paymentRepository = {
     transactionNsu?: string,
     slug?: string
   ): Promise<{ success: boolean; message: string; status?: OrderStatus }> {
-    if (!isSupabaseConfigured || !supabase) {
-      return { success: false, message: 'Supabase não configurado.' };
-    }
+    let token: string | undefined;
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-
-    if (!token) {
-      return { success: false, message: 'Autenticação necessária.' };
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        token = sessionData.session?.access_token;
+      } catch (err) {
+        console.warn('[paymentRepository] Erro ao obter sessão:', err);
+      }
     }
 
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const res = await fetch('/api/payments/reconcile', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         body: JSON.stringify({
           orderId,
           transaction_nsu: transactionNsu,
@@ -162,4 +198,3 @@ export const paymentRepository = {
     }
   },
 };
-

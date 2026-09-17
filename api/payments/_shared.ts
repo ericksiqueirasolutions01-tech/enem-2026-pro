@@ -16,29 +16,41 @@ export function getSupabaseUrl(): string {
   return url;
 }
 
+export function getOptionalSupabaseAdmin(): SupabaseClient | null {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null;
+  }
+  try {
+    return createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Cria e retorna um cliente Supabase com privilégios de Service Role (Server-Side).
  * NUNCA utilize este cliente no frontend.
  */
 export function getSupabaseAdmin(): SupabaseClient {
-  const supabaseUrl = getSupabaseUrl();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceRoleKey) {
-    throw new Error('Configuração ausente: SUPABASE_SERVICE_ROLE_KEY deve estar definida no ambiente.');
+  const client = getOptionalSupabaseAdmin();
+  if (!client) {
+    throw new Error('Configuração ausente: SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY devem estar definidas no ambiente.');
   }
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  return client;
 }
 
 /**
  * Extrai e valida a sessão do usuário autenticado a partir do cabeçalho Authorization: Bearer <token>.
  */
 export async function getAuthenticatedUser(req: any) {
-  const authHeader = req.headers.authorization || req.headers.Authorization;
+  const authHeader = req.headers?.authorization || req.headers?.Authorization;
   if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
     return null;
   }
@@ -47,7 +59,8 @@ export async function getAuthenticatedUser(req: any) {
   if (!token) return null;
 
   try {
-    const supabaseAdmin = getSupabaseAdmin();
+    const supabaseAdmin = getOptionalSupabaseAdmin();
+    if (!supabaseAdmin) return null;
     const { data, error } = await supabaseAdmin.auth.getUser(token);
     if (error || !data?.user) {
       return null;

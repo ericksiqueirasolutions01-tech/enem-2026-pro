@@ -1,7 +1,6 @@
-import type { IncomingMessage, ServerResponse } from 'http';
 import crypto from 'crypto';
 import {
-  getSupabaseAdmin,
+  getOptionalSupabaseAdmin,
   getAuthenticatedUser,
   INFINITEPAY_API_URL,
   FIXED_PRODUCT_PRICE_CENTS,
@@ -17,91 +16,95 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    // 2. Validar autenticação do usuário
-    const user = await getAuthenticatedUser(req);
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        error: 'UNAUTHORIZED',
-        message: 'Você precisa estar autenticado para gerar o checkout de pagamento.',
-      });
+    const supabase = getOptionalSupabaseAdmin();
+    const authUser = await getAuthenticatedUser(req);
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+
+    // Obter dados do cliente
+    let userId = authUser?.id || body.userId || `user-${Date.now()}`;
+    let customerName = 'Aluno ENEM 2026 PRO';
+    let customerEmail = authUser?.email || body.email || 'aluno@enem2026pro.com';
+    let customerPhone: string | undefined = body.phone ? String(body.phone).replace(/\D/g, '') : undefined;
+
+    // 2. Se Supabase estiver conectado e houver usuário autenticado, verificar perfil
+    if (authUser && supabase) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, name, email, phone, status, role')
+        .eq('id', authUser.id)
+        .maybeSingle();
+
+      if (profile) {
+        if (profile.status === 'APROVADO') {
+          return res.status(200).json({
+            success: true,
+            alreadyActive: true,
+            message: 'Seu acesso à plataforma já está totalmente liberado!',
+          });
+        }
+        customerName = profile.name || customerName;
+        customerEmail = profile.email || customerEmail;
+        if (profile.phone) {
+          customerPhone = profile.phone.replace(/\D/g, '');
+        }
+      }
+
+      // Reutilizar pedido pendente recente nos últimos 30 minutos se já existir
+      const trintaMinutosAtras = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const { data: existingOrder } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('user_id', authUser.id)
+        .eq('status', 'PENDING')
+        .gt('created_at', trintaMinutosAtras)
+        .not('checkout_url', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingOrder && existingOrder.checkout_url) {
+        return res.status(200).json({
+          success: true,
+          orderId: existingOrder.id,
+          externalReference: existingOrder.external_reference,
+          checkoutUrl: existingOrder.checkout_url,
+          status: existingOrder.status,
+          reused: true,
+        });
+      }
+    } else if (body.name) {
+      customerName = body.name;
     }
 
-    const supabase = getSupabaseAdmin();
-
-    // 3. Buscar perfil atual do usuário
-    const { data: profile, error: profileErr } = await supabase
-      .from('profiles')
-      .select('id, name, email, phone, status, role')
-      .eq('id', user.id)
-      .single();
-
-    if (profileErr || !profile) {
-      return res.status(404).json({
-        success: false,
-        error: 'PROFILE_NOT_FOUND',
-        message: 'Perfil do usuário não encontrado.',
-      });
-    }
-
-    // Se já estiver APROVADO, não cria nova cobrança desnecessária
-    if (profile.status === 'APROVADO') {
-      return res.status(200).json({
-        success: true,
-        alreadyActive: true,
-        message: 'Seu acesso à plataforma já está totalmente liberado!',
-      });
-    }
-
-    // 4. Verificar se existe um pedido pendente reutilizável gerado nos últimos 30 minutos
-    const trintaMinutosAtras = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-    const { data: existingOrder } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('status', 'PENDING')
-      .gt('created_at', trintaMinutosAtras)
-      .not('checkout_url', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (existingOrder && existingOrder.checkout_url) {
-      return res.status(200).json({
-        success: true,
-        orderId: existingOrder.id,
-        externalReference: existingOrder.external_reference,
-        checkoutUrl: existingOrder.checkout_url,
-        status: existingOrder.status,
-        reused: true,
-      });
-    }
-
-    // 5. Gerar novo pedido no banco de dados com valor e preço fixados no backend
+    // 3. Gerar NSU único e fixar valor imutável no backend (R$ 37,00 = 3700 centavos)
     const orderNsu = `enem-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-    const { data: newOrder, error: orderInsertErr } = await supabase
-      .from('orders')
-      .insert({
-        user_id: user.id,
-        provider: 'infinitepay',
-        amount_cents: FIXED_PRODUCT_PRICE_CENTS,
-        currency: 'BRL',
-        status: 'PENDING',
-        external_reference: orderNsu,
-      })
-      .select()
-      .single();
+    let orderId = orderNsu;
 
-    if (orderInsertErr || !newOrder) {
-      console.error('[Payments] Erro ao criar pedido no banco:', orderInsertErr);
-      return res.status(500).json({
-        success: false,
-        error: 'ORDER_CREATION_FAILED',
-        message: 'Falha ao registrar pedido no sistema.',
-      });
+    // 4. Se Supabase estiver disponível, registrar pedido
+    if (supabase && userId) {
+      try {
+        const { data: newOrder, error: orderInsertErr } = await supabase
+          .from('orders')
+          .insert({
+            user_id: userId,
+            provider: 'infinitepay',
+            amount_cents: FIXED_PRODUCT_PRICE_CENTS,
+            currency: 'BRL',
+            status: 'PENDING',
+            external_reference: orderNsu,
+          })
+          .select()
+          .single();
+
+        if (!orderInsertErr && newOrder) {
+          orderId = newOrder.id;
+        }
+      } catch (dbErr) {
+        console.warn('[Payments] Não foi possível persistir no Supabase, prosseguindo com InfinitePay:', dbErr);
+      }
     }
 
-    // 6. Montar payload oficial da API InfinitePay
+    // 5. Montar payload oficial InfinitePay (CloudWalk)
     const handle = process.env.INFINITEPAY_HANDLE || DEFAULT_HANDLE;
     const appBaseUrl = getAppBaseUrl(req);
     const webhookSecret = process.env.INFINITEPAY_WEBHOOK_SECRET || '';
@@ -109,23 +112,23 @@ export default async function handler(req: any, res: any) {
     const infinitePayload: Record<string, unknown> = {
       handle,
       order_nsu: orderNsu,
-      redirect_url: `${appBaseUrl}/payment/success?order_id=${newOrder.id}`,
+      redirect_url: `${appBaseUrl}/payment/success?order_id=${orderId}`,
       webhook_url: `${appBaseUrl}/api/payments/webhook${webhookSecret ? `?secret=${encodeURIComponent(webhookSecret)}` : ''}`,
       customer: {
-        name: profile.name || user.email?.split('@')[0] || 'Aluno ENEM',
-        email: profile.email || user.email,
-        phone_number: profile.phone ? profile.phone.replace(/\D/g, '') : undefined,
+        name: customerName,
+        email: customerEmail,
+        ...(customerPhone ? { phone_number: customerPhone } : {}),
       },
       items: [
         {
           quantity: 1,
-          price: FIXED_PRODUCT_PRICE_CENTS, // 3700 centavos = R$ 37,00
+          price: FIXED_PRODUCT_PRICE_CENTS, // R$ 37,00 estrito
           description: 'ENEM 2026 PRO — Acesso Completo',
         },
       ],
     };
 
-    // 7. Fazer requisição oficial POST https://api.checkout.infinitepay.io/links
+    // 6. Requisição server-to-server POST https://api.checkout.infinitepay.io/links
     const infiniteResponse = await fetch(`${INFINITEPAY_API_URL}/links`, {
       method: 'POST',
       headers: {
@@ -138,34 +141,55 @@ export default async function handler(req: any, res: any) {
       const errorText = await infiniteResponse.text();
       console.error('[InfinitePay] Falha na criação do link:', infiniteResponse.status, errorText);
 
-      // Em ambiente local/desenvolvimento ou caso a tag retorne erro, fallback amigável
       return res.status(502).json({
         success: false,
         error: 'GATEWAY_ERROR',
-        message: 'Não foi possível gerar o link na InfinitePay no momento.',
+        message: 'A InfinitePay não pôde gerar o link de checkout no momento. Verifique as credenciais.',
         details: errorText,
       });
     }
 
-    const infiniteData = (await infiniteResponse.json()) as { url?: string };
-    if (!infiniteData.url) {
-      throw new Error('A API da InfinitePay não retornou uma URL válida de checkout.');
+    const ipData = (await infiniteResponse.json()) as {
+      url?: string;
+      checkout_url?: string;
+      slug?: string;
+      [key: string]: any;
+    };
+
+    const checkoutUrl =
+      ipData.url ||
+      ipData.checkout_url ||
+      (ipData.slug ? `https://pay.infinitepay.io/${ipData.slug}` : null);
+
+    if (!checkoutUrl) {
+      return res.status(502).json({
+        success: false,
+        error: 'INVALID_GATEWAY_RESPONSE',
+        message: 'A resposta da InfinitePay não continha a URL de redirecionamento do checkout.',
+      });
     }
 
-    // 8. Atualizar pedido com a checkout_url gerada
-    await supabase
-      .from('orders')
-      .update({
-        checkout_url: infiniteData.url,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', newOrder.id);
+    // Atualizar registro no banco se existir
+    if (supabase && orderId !== orderNsu) {
+      try {
+        await supabase
+          .from('orders')
+          .update({
+            checkout_url: checkoutUrl,
+            provider_slug: ipData.slug || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', orderId);
+      } catch (updateErr) {
+        console.warn('[Payments] Erro ao atualizar checkout_url no banco:', updateErr);
+      }
+    }
 
     return res.status(200).json({
       success: true,
-      orderId: newOrder.id,
+      orderId,
       externalReference: orderNsu,
-      checkoutUrl: infiniteData.url,
+      checkoutUrl,
       status: 'PENDING',
     });
   } catch (error: any) {
@@ -177,4 +201,3 @@ export default async function handler(req: any, res: any) {
     });
   }
 }
-

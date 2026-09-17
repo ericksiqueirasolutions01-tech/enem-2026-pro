@@ -1,4 +1,4 @@
-import { getSupabaseAdmin, getAuthenticatedUser } from './_shared';
+import { getOptionalSupabaseAdmin, getAuthenticatedUser } from './_shared';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {
@@ -8,43 +8,65 @@ export default async function handler(req: any, res: any) {
 
   try {
     const user = await getAuthenticatedUser(req);
-    if (!user) {
-      return res.status(401).json({ success: false, message: 'Não autorizado.' });
-    }
-
     const orderId = req.query.order_id || req.query.orderId;
     const externalRef = req.query.external_reference || req.query.order_nsu;
 
-    const supabase = getSupabaseAdmin();
-
-    // 1. Obter status do perfil
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('status, role')
-      .eq('id', user.id)
-      .single();
-
-    // 2. Buscar o pedido mais recente ou o especificado
-    let query = supabase.from('orders').select('*').eq('user_id', user.id);
-
-    if (orderId) {
-      query = query.eq('id', orderId);
-    } else if (externalRef) {
-      query = query.eq('external_reference', externalRef);
-    } else {
-      query = query.order('created_at', { ascending: false }).limit(1);
+    const supabase = getOptionalSupabaseAdmin();
+    if (!supabase) {
+      return res.status(200).json({
+        success: true,
+        orderId: orderId || '',
+        status: 'PENDING',
+        isPaid: false,
+        userStatus: 'PENDENTE_APROVACAO',
+      });
     }
 
-    const { data: order } = await query.maybeSingle();
+    let isPaid = false;
+    let userStatus = 'PENDENTE_APROVACAO';
+    let order: any = null;
 
-    const isPaid = order?.status === 'PAID' || profile?.status === 'APROVADO';
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('status, role')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profile) {
+        userStatus = profile.status;
+      }
+
+      let query = supabase.from('orders').select('*').eq('user_id', user.id);
+      if (orderId) {
+        query = query.eq('id', orderId);
+      } else if (externalRef) {
+        query = query.eq('external_reference', externalRef);
+      } else {
+        query = query.order('created_at', { ascending: false }).limit(1);
+      }
+
+      const { data } = await query.maybeSingle();
+      order = data;
+    } else if (orderId || externalRef) {
+      let query = supabase.from('orders').select('*');
+      if (orderId) {
+        query = query.eq('id', orderId);
+      } else {
+        query = query.eq('external_reference', externalRef);
+      }
+      const { data } = await query.maybeSingle();
+      order = data;
+    }
+
+    isPaid = order?.status === 'PAID' || userStatus === 'APROVADO';
 
     return res.status(200).json({
       success: true,
-      orderId: order?.id,
-      status: order?.status || 'PENDING',
+      orderId: order?.id || orderId,
+      status: order?.status || (isPaid ? 'PAID' : 'PENDING'),
       isPaid,
-      userStatus: profile?.status || 'PENDENTE_APROVACAO',
+      userStatus: isPaid ? 'APROVADO' : userStatus,
       paidAt: order?.paid_at,
       receiptUrl: order?.receipt_url,
       captureMethod: order?.capture_method,
@@ -54,4 +76,3 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ success: false, message: err?.message || 'Erro ao consultar status.' });
   }
 }
-
