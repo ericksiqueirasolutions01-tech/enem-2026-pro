@@ -23,6 +23,8 @@ import {
   StudentMaterialProgress,
   MaterialProgressStatus,
   LibraryAreaId,
+  Coupon,
+  CouponValidationResult,
 } from '../types';
 import {
   SEED_USERS,
@@ -61,6 +63,7 @@ const STORAGE_KEYS = {
   PDF_DRAFTS: 'enem2026_pdf_drafts_v3',
   MATERIAL_PROGRESS: 'enem2026_material_progress_v3',
   CUSTOM_LIBRARY_MATERIALS: 'enem2026_custom_library_materials_v3',
+  COUPONS: 'enem2026_coupons_v3',
 };
 
 class StorageService {
@@ -235,6 +238,57 @@ class StorageService {
     const tasks = this.get<StudyPlanTask[]>(STORAGE_KEYS.STUDY_TASKS, []);
     if (tasks.length === 0) {
       this.generateDefaultStudyPlan();
+    }
+
+    // Inicializar cupons default se vazio
+    const existingCoupons = this.get<Coupon[]>(STORAGE_KEYS.COUPONS, []);
+    if (existingCoupons.length === 0) {
+      this.set(STORAGE_KEYS.COUPONS, [
+        {
+          id: 'coupon-enem10',
+          code: 'ENEM10',
+          discountType: 'PERCENTAGE',
+          discountValue: 10,
+          maxUses: 100,
+          usedCount: 0,
+          expiresAt: null,
+          active: true,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 'coupon-enem20',
+          code: 'ENEM20',
+          discountType: 'PERCENTAGE',
+          discountValue: 20,
+          maxUses: 50,
+          usedCount: 0,
+          expiresAt: null,
+          active: true,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 'coupon-promo50',
+          code: 'PROMO50',
+          discountType: 'PERCENTAGE',
+          discountValue: 50,
+          maxUses: 30,
+          usedCount: 0,
+          expiresAt: null,
+          active: true,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 'coupon-bolsa100',
+          code: 'BOLSA100',
+          discountType: 'PERCENTAGE',
+          discountValue: 100,
+          maxUses: 10,
+          usedCount: 0,
+          expiresAt: null,
+          active: true,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
     }
   }
 
@@ -1292,6 +1346,114 @@ class StorageService {
   public deleteCustomMaterial(id: string): void {
     const list = this.getCustomMaterials().filter((m) => m.id !== id);
     this.set(STORAGE_KEYS.CUSTOM_LIBRARY_MATERIALS, list);
+  }
+
+  // ==========================================
+  // GESTÃO DE CUPONS DE DESCONTO
+  // ==========================================
+  public getCoupons(): Coupon[] {
+    return this.get<Coupon[]>(STORAGE_KEYS.COUPONS, []);
+  }
+
+  public saveCoupon(coupon: Coupon): void {
+    const list = this.getCoupons();
+    const idx = list.findIndex(
+      (c) => c.id === coupon.id || c.code.toUpperCase() === coupon.code.toUpperCase()
+    );
+    if (idx >= 0) {
+      list[idx] = coupon;
+    } else {
+      list.unshift(coupon);
+    }
+    this.set(STORAGE_KEYS.COUPONS, list);
+  }
+
+  public deleteCoupon(id: string): void {
+    const list = this.getCoupons().filter((c) => c.id !== id);
+    this.set(STORAGE_KEYS.COUPONS, list);
+  }
+
+  public validateCoupon(code: string, originalPriceCents = 3700): CouponValidationResult {
+    const cleanCode = (code || '').trim().toUpperCase();
+    if (!cleanCode) {
+      return {
+        valid: false,
+        error: 'Digite um código de cupom.',
+        originalPriceCents,
+        discountCents: 0,
+        finalPriceCents: originalPriceCents,
+      };
+    }
+
+    const coupons = this.getCoupons();
+    const coupon = coupons.find((c) => c.code.toUpperCase() === cleanCode);
+
+    if (!coupon) {
+      return {
+        valid: false,
+        error: 'Cupom inválido ou não encontrado.',
+        originalPriceCents,
+        discountCents: 0,
+        finalPriceCents: originalPriceCents,
+      };
+    }
+
+    if (!coupon.active) {
+      return {
+        valid: false,
+        error: 'Este cupom foi desativado.',
+        originalPriceCents,
+        discountCents: 0,
+        finalPriceCents: originalPriceCents,
+      };
+    }
+
+    if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) {
+      return {
+        valid: false,
+        error: 'Este cupom já atingiu o limite máximo de utilizações.',
+        originalPriceCents,
+        discountCents: 0,
+        finalPriceCents: originalPriceCents,
+      };
+    }
+
+    if (coupon.expiresAt && new Date(coupon.expiresAt).getTime() < Date.now()) {
+      return {
+        valid: false,
+        error: 'Este cupom expirou.',
+        originalPriceCents,
+        discountCents: 0,
+        finalPriceCents: originalPriceCents,
+      };
+    }
+
+    let discountCents = 0;
+    if (coupon.discountType === 'PERCENTAGE') {
+      discountCents = Math.round((originalPriceCents * coupon.discountValue) / 100);
+    } else {
+      discountCents = Math.min(originalPriceCents, coupon.discountValue);
+    }
+
+    const finalPriceCents = Math.max(0, originalPriceCents - discountCents);
+
+    return {
+      valid: true,
+      coupon,
+      originalPriceCents,
+      discountCents,
+      finalPriceCents,
+    };
+  }
+
+  public incrementCouponUses(code: string): void {
+    const cleanCode = (code || '').trim().toUpperCase();
+    const list = this.getCoupons();
+    const coupon = list.find((c) => c.code.toUpperCase() === cleanCode);
+    if (coupon) {
+      coupon.usedCount = (coupon.usedCount || 0) + 1;
+      this.set(STORAGE_KEYS.COUPONS, list);
+    }
   }
 }
 

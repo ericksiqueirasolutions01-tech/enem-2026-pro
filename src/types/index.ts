@@ -488,6 +488,10 @@ export interface CreateCheckoutResponse {
   orderId?: string;
   externalReference?: string;
   status?: OrderStatus;
+  alreadyActive?: boolean;
+  isFreeCoupon?: boolean;
+  appliedDiscountCents?: number;
+  finalPriceCents?: number;
   error?: string;
   message?: string;
 }
@@ -502,5 +506,28 @@ export interface PaymentStatusResponse {
   receiptUrl?: string | null;
   captureMethod?: string | null;
   message?: string;
+}
+
+export type CouponDiscountType = 'PERCENTAGE' | 'FIXED';
+
+export interface Coupon {
+  id: string;
+  code: string;
+  discountType: CouponDiscountType;
+  discountValue: number; // Porcentagem (ex: 20 para 20%) ou valor em centavos (ex: 1000 para R$ 10,00)
+  maxUses?: number | null;
+  usedCount: number;
+  expiresAt?: string | null;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface CouponValidationResult {
+  valid: boolean;
+  coupon?: Coupon;
+  error?: string;
+  originalPriceCents: number;
+  discountCents: number;
+  finalPriceCents: number;
 }
 

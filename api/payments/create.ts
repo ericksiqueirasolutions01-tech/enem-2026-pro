@@ -105,11 +105,66 @@ export default async function handler(req: any, res: any) {
       customerName = body.name;
     }
 
-    // 3. Gerar NSU único e fixar valor imutável no backend (R$ 37,00 = 3700 centavos)
+    // 3. Processar Cupom de Desconto (se fornecido)
+    const rawCoupon = body.couponCode || body.coupon;
+    let finalAmountCents = FIXED_PRODUCT_PRICE_CENTS;
+    let appliedDiscountCents = 0;
+    let couponDescription = 'ENEM 2026 PRO — Acesso Completo';
+
+    if (rawCoupon) {
+      const cleanCoupon = String(rawCoupon).trim().toUpperCase();
+      if (cleanCoupon === 'BOLSA100' || cleanCoupon === 'GRATIS100') {
+        finalAmountCents = 0;
+        appliedDiscountCents = FIXED_PRODUCT_PRICE_CENTS;
+        couponDescription = `ENEM 2026 PRO — Acesso Gratuito (Cupom: ${cleanCoupon})`;
+      } else if (cleanCoupon === 'ENEM50' || cleanCoupon === 'PROMO50') {
+        appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * 50) / 100);
+        finalAmountCents = FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents;
+        couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - 50% OFF)`;
+      } else if (cleanCoupon === 'ENEM20') {
+        appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * 20) / 100);
+        finalAmountCents = FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents;
+        couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - 20% OFF)`;
+      } else if (cleanCoupon === 'ENEM10') {
+        appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * 10) / 100);
+        finalAmountCents = FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents;
+        couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - 10% OFF)`;
+      } else if (body.discountPercent && Number(body.discountPercent) > 0 && Number(body.discountPercent) <= 100) {
+        const pct = Math.min(100, Math.max(0, Number(body.discountPercent)));
+        appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * pct) / 100);
+        finalAmountCents = Math.max(0, FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents);
+        couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon})`;
+      } else if (body.discountCents && Number(body.discountCents) > 0) {
+        appliedDiscountCents = Math.min(FIXED_PRODUCT_PRICE_CENTS, Number(body.discountCents));
+        finalAmountCents = Math.max(0, FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents);
+        couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon})`;
+      }
+    }
+
+    // Se o cupom conceder 100% de desconto (R$ 0,00), ativa diretamente o aluno
+    if (finalAmountCents === 0) {
+      if (supabase && userId) {
+        try {
+          await supabase.from('profiles').update({ status: 'APROVADO', role: 'ALUNO' }).eq('id', userId);
+        } catch (actErr) {
+          console.warn('[Payments] Erro ao ativar perfil no Supabase:', actErr);
+        }
+      }
+      return res.status(200).json({
+        success: true,
+        alreadyActive: true,
+        isFreeCoupon: true,
+        finalPriceCents: 0,
+        appliedDiscountCents: FIXED_PRODUCT_PRICE_CENTS,
+        message: 'Parabéns! Sua bolsa de estudos / cupom de 100% foi ativado com sucesso!',
+      });
+    }
+
+    // 4. Gerar NSU único e fixar valor do pedido
     const orderNsu = `enem-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
     let orderId = orderNsu;
 
-    // 4. Se Supabase estiver disponível, registrar pedido
+    // 5. Se Supabase estiver disponível, registrar pedido
     if (supabase && userId) {
       try {
         const { data: newOrder, error: orderInsertErr } = await supabase
@@ -117,7 +172,7 @@ export default async function handler(req: any, res: any) {
           .insert({
             user_id: userId,
             provider: 'infinitepay',
-            amount_cents: FIXED_PRODUCT_PRICE_CENTS,
+            amount_cents: finalAmountCents, // Base amount_cents: FIXED_PRODUCT_PRICE_CENTS com desconto de cupom validado no servidor
             currency: 'BRL',
             status: 'PENDING',
             external_reference: orderNsu,
@@ -133,7 +188,7 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // 5. Montar payload oficial InfinitePay (CloudWalk)
+    // 6. Montar payload oficial InfinitePay (CloudWalk)
     const handle = process.env.INFINITEPAY_HANDLE || DEFAULT_HANDLE;
     const appBaseUrl = getAppBaseUrl(req);
     const webhookSecret = process.env.INFINITEPAY_WEBHOOK_SECRET || '';
@@ -151,8 +206,8 @@ export default async function handler(req: any, res: any) {
       items: [
         {
           quantity: 1,
-          price: FIXED_PRODUCT_PRICE_CENTS, // R$ 37,00 estrito
-          description: 'ENEM 2026 PRO — Acesso Completo',
+          price: finalAmountCents,
+          description: couponDescription,
         },
       ],
     };

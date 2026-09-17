@@ -12,9 +12,10 @@ import {
   CreditCard,
   QrCode,
   Zap,
+  Tag,
 } from 'lucide-react';
 import { db } from '../../db/storage';
-import { User } from '../../types';
+import { User, CouponValidationResult } from '../../types';
 import { authRepository } from '../../services/repositories/authRepository';
 import { paymentRepository } from '../../services/repositories/paymentRepository';
 
@@ -35,6 +36,12 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkedMessage, setCheckedMessage] = useState<string | null>(null);
 
+  // Estados do Cupom de Desconto
+  const [couponCodeInput, setCouponCodeInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponValidationResult | null>(null);
+  const [couponFeedback, setCouponFeedback] = useState<string | null>(null);
+  const [showCouponInput, setShowCouponInput] = useState(false);
+
   useEffect(() => {
     return db.subscribe(() => {
       const user = db.getCurrentUser();
@@ -45,19 +52,47 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
     });
   }, [onNavigate]);
 
+  const handleApplyCoupon = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!couponCodeInput.trim()) return;
+
+    const result = db.validateCoupon(couponCodeInput.trim(), 3700);
+    if (result.valid) {
+      setAppliedCoupon(result);
+      setCouponFeedback(null);
+      setCheckoutError(null);
+    } else {
+      setAppliedCoupon(null);
+      setCouponFeedback(result.error || 'Cupom inválido.');
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCodeInput('');
+    setCouponFeedback(null);
+  };
+
   const handleLiberarAcessoInfinitePay = async () => {
     setIsGeneratingCheckout(true);
     setCheckoutError(null);
 
     try {
-      const res = await paymentRepository.createCheckoutLink();
+      const res = await paymentRepository.createCheckoutLink({
+        couponCode: appliedCoupon?.coupon?.code,
+        discountCents: appliedCoupon?.discountCents,
+        finalPriceCents: appliedCoupon?.finalPriceCents,
+      });
+
+      if (res.isFreeCoupon || (res.success && (res as any).alreadyActive)) {
+        setCheckedMessage('Parabéns! Sua bolsa/cupom foi ativado com sucesso! Redirecionando...');
+        setTimeout(() => onNavigate('dashboard'), 1200);
+        return;
+      }
 
       if (res.success && res.checkoutUrl) {
         // Redireciona o aluno diretamente para o checkout hospedado oficial da InfinitePay
         window.location.href = res.checkoutUrl;
-      } else if (res.success && (res as any).alreadyActive) {
-        setCheckedMessage('Seu acesso já está liberado! Redirecionando...');
-        setTimeout(() => onNavigate('dashboard'), 1000);
       } else {
         setCheckoutError(res.message || res.error || 'Não foi possível gerar o checkout. Tente novamente.');
       }
@@ -158,9 +193,19 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
                 <h3 className="text-base font-black text-white">ENEM 2026 PRO</h3>
               </div>
               <div className="text-right">
-                <span className="text-[11px] text-slate-400 line-through block">de R$ 197,00</span>
-                <span className="text-xl font-black text-emerald-400">R$ 37,00</span>
-                <span className="text-[9px] text-slate-400 block uppercase font-bold">Pagamento Único</span>
+                <span className="text-[11px] text-slate-400 line-through block">
+                  {appliedCoupon ? 'de R$ 37,00' : 'de R$ 197,00'}
+                </span>
+                <span className="text-xl font-black text-emerald-400">
+                  {appliedCoupon?.finalPriceCents === 0
+                    ? 'GRÁTIS (100% OFF)'
+                    : `R$ ${(appliedCoupon ? appliedCoupon.finalPriceCents / 100 : 37).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                </span>
+                <span className="text-[9px] text-slate-400 block uppercase font-bold">
+                  {appliedCoupon
+                    ? `Desconto de R$ ${(appliedCoupon.discountCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                    : 'Pagamento Único'}
+                </span>
               </div>
             </div>
 
@@ -197,20 +242,93 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
               </div>
             </div>
 
+            {/* Seção de Cupom de Desconto */}
+            <div className="pt-2 border-t border-slate-700/60">
+              {!appliedCoupon ? (
+                !showCouponInput ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowCouponInput(true)}
+                    className="text-xs font-bold text-brand-400 hover:text-brand-300 flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <Tag className="w-3.5 h-3.5" />
+                    <span>Possui um cupom de desconto?</span>
+                  </button>
+                ) : (
+                  <form onSubmit={handleApplyCoupon} className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-brand-400" />
+                      <span>Inserir Cupom de Desconto:</span>
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Ex: ENEM10, ENEM20, BOLSA100"
+                        value={couponCodeInput}
+                        onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
+                        className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold uppercase tracking-wider text-white placeholder:text-slate-500 focus:outline-none focus:border-brand-500"
+                      />
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-xl cursor-pointer transition-colors"
+                      >
+                        Aplicar
+                      </button>
+                    </div>
+                    {couponFeedback && (
+                      <p className="text-[11px] text-rose-400 font-bold">{couponFeedback}</p>
+                    )}
+                  </form>
+                )
+              ) : (
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <Tag className="w-4 h-4 text-emerald-400" />
+                    <span className="font-bold text-emerald-300">
+                      Cupom <strong className="font-mono text-white">{appliedCoupon.coupon?.code}</strong> aplicado! (-
+                      {appliedCoupon.coupon?.discountType === 'PERCENTAGE'
+                        ? `${appliedCoupon.coupon.discountValue}%`
+                        : `R$ ${(appliedCoupon.discountCents / 100).toFixed(2)}`}
+                      )
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveCoupon}
+                    className="text-[11px] font-bold text-slate-400 hover:text-rose-400 cursor-pointer underline"
+                  >
+                    Remover
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Botão Principal de Compra */}
             <button
               onClick={handleLiberarAcessoInfinitePay}
               disabled={isGeneratingCheckout}
-              className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-brand-600 via-brand-500 to-emerald-600 hover:opacity-95 text-white font-black text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-lg shadow-brand-600/30 active:scale-98 disabled:opacity-50"
+              className={`w-full py-3.5 px-5 rounded-2xl ${
+                appliedCoupon?.finalPriceCents === 0
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 shadow-emerald-600/30'
+                  : 'bg-gradient-to-r from-brand-600 via-brand-500 to-emerald-600 shadow-brand-600/30'
+              } hover:opacity-95 text-white font-black text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-lg active:scale-98 disabled:opacity-50`}
             >
               {isGeneratingCheckout ? (
                 <>
                   <RotateCw className="w-4 h-4 animate-spin" />
-                  <span>Gerando Checkout Seguro...</span>
+                  <span>
+                    {appliedCoupon?.finalPriceCents === 0
+                      ? 'Ativando Acesso Gratuito...'
+                      : 'Gerando Checkout Seguro...'}
+                  </span>
                 </>
               ) : (
                 <>
-                  <span>LIBERAR MEU ACESSO (R$ 37,00)</span>
+                  <span>
+                    {appliedCoupon?.finalPriceCents === 0
+                      ? 'ATIVAR ACESSO GRATUITO AGORA'
+                      : `LIBERAR MEU ACESSO (R$ ${(appliedCoupon ? appliedCoupon.finalPriceCents / 100 : 37).toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`}
+                  </span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

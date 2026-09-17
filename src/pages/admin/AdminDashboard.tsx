@@ -16,6 +16,8 @@ import {
   LibraryAreaId,
   MaterialContentType,
   Order,
+  Coupon,
+  CouponDiscountType,
 } from '../../types';
 import { paymentRepository } from '../../services/repositories/paymentRepository';
 import { ENEM_CURRICULUM } from '../../db/curriculumData';
@@ -65,6 +67,10 @@ import {
   CreditCard,
   QrCode,
   RefreshCw,
+  Tag,
+  Percent,
+  Gift,
+  Ticket,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -76,6 +82,7 @@ type AdminTab =
   | 'METRICAS'
   | 'PENDENTES'
   | 'VENDAS'
+  | 'CUPONS'
   | 'MATERIAS'
   | 'BIBLIOTECA'
   | 'QUESTOES'
@@ -97,6 +104,83 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
   const [syncSuccessMsg, setSyncSuccessMsg] = useState(false);
   const [pendingFilter, setPendingFilter] = useState<'PENDENTES' | 'APROVADOS' | 'REPROVADOS' | 'TODOS'>('PENDENTES');
   const [adminToast, setAdminToast] = useState<string | null>(null);
+
+  // Estados para Gestão de Cupons de Desconto
+  const [coupons, setCoupons] = useState<Coupon[]>(() => db.getCoupons());
+  const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
+  const [cCode, setCCode] = useState('');
+  const [cDiscountType, setCDiscountType] = useState<CouponDiscountType>('PERCENTAGE');
+  const [cDiscountValue, setCDiscountValue] = useState<number>(20);
+  const [cMaxUses, setCMaxUses] = useState<string>('');
+  const [cExpiresAt, setCExpiresAt] = useState<string>('');
+
+  const handleSaveCoupon = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = cCode.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+    if (!cleanCode) {
+      setAdminToast('Informe o código do cupom.');
+      setTimeout(() => setAdminToast(null), 3000);
+      return;
+    }
+
+    const val = Number(cDiscountValue);
+    if (isNaN(val) || val <= 0) {
+      setAdminToast('Informe um valor de desconto válido maior que zero.');
+      setTimeout(() => setAdminToast(null), 3000);
+      return;
+    }
+
+    if (cDiscountType === 'PERCENTAGE' && val > 100) {
+      setAdminToast('O desconto percentual não pode ultrapassar 100%.');
+      setTimeout(() => setAdminToast(null), 3000);
+      return;
+    }
+
+    const newCoupon: Coupon = {
+      id: `cpn-${Date.now()}`,
+      code: cleanCode,
+      discountType: cDiscountType,
+      discountValue: val,
+      maxUses: cMaxUses ? parseInt(cMaxUses, 10) : undefined,
+      usedCount: 0,
+      active: true,
+      createdAt: new Date().toISOString(),
+      expiresAt: cExpiresAt ? new Date(cExpiresAt).toISOString() : undefined,
+    };
+
+    db.saveCoupon(newCoupon);
+    setCoupons(db.getCoupons());
+    setIsCouponModalOpen(false);
+    setCCode('');
+    setCDiscountValue(20);
+    setCMaxUses('');
+    setCExpiresAt('');
+    setAdminToast(`Cupom ${newCoupon.code} criado e ativado com sucesso!`);
+    setTimeout(() => setAdminToast(null), 4000);
+  };
+
+  const handleToggleCoupon = (coupon: Coupon) => {
+    const updated = { ...coupon, active: !coupon.active };
+    db.saveCoupon(updated);
+    setCoupons(db.getCoupons());
+    setAdminToast(`Cupom ${coupon.code} ${updated.active ? 'ativado' : 'desativado'}.`);
+    setTimeout(() => setAdminToast(null), 3000);
+  };
+
+  const handleDeleteCoupon = (id: string, code: string) => {
+    if (window.confirm(`Deseja realmente excluir o cupom "${code}"? Esta ação não pode ser desfeita.`)) {
+      db.deleteCoupon(id);
+      setCoupons(db.getCoupons());
+      setAdminToast(`Cupom ${code} excluído com sucesso.`);
+      setTimeout(() => setAdminToast(null), 3000);
+    }
+  };
+
+  const handleCopyCouponCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setAdminToast(`Código "${code}" copiado!`);
+    setTimeout(() => setAdminToast(null), 2500);
+  };
 
   // Estados para Gestão de Vendas / InfinitePay
   const [orders, setOrders] = useState<Order[]>([]);
@@ -223,6 +307,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
       setUsers(db.getUsers());
       setProfiles(db.getProfiles());
       setPdfDrafts(db.getPdfDrafts());
+      setCoupons(db.getCoupons());
     });
   }, []);
 
@@ -658,6 +743,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
             id: 'VENDAS',
             label: `Vendas & InfinitePay (${orders.filter((o) => o.status === 'PAID').length})`,
             icon: CreditCard,
+          },
+          {
+            id: 'CUPONS',
+            label: `Cupons de Desconto (${coupons.length})`,
+            icon: Tag,
           },
           { id: 'MATERIAS', label: `Matérias & Conteúdos (15)`, icon: BookOpen },
           { id: 'BIBLIOTECA', label: `Biblioteca & Materiais (${428 + customMaterials.length})`, icon: FolderDown },
@@ -1320,6 +1410,418 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB: GESTÃO DE CUPONS DE DESCONTO & BOLSAS INTEGRAIS                      */}
+      {/* ========================================================================= */}
+      {activeTab === 'CUPONS' && (
+        <div className="space-y-6">
+          {/* Header Card */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-black border border-emerald-200 dark:border-emerald-800">
+                <Tag className="w-3.5 h-3.5" />
+                <span>Gestão Comercial • Descontos e Bolsas</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                Cupons de Desconto & Bolsas
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Gere cupons promocionais em percentual (ex: 20% OFF) ou bolsas de 100% de gratuidade que ativam instantaneamente o acesso do aluno ao ENEM 2026 PRO sem necessidade de pagamento no gateway.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                setCCode('');
+                setCDiscountType('PERCENTAGE');
+                setCDiscountValue(20);
+                setCMaxUses('');
+                setCExpiresAt('');
+                setIsCouponModalOpen(true);
+              }}
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black text-sm hover:from-emerald-700 hover:to-teal-700 transition shadow-lg shadow-emerald-600/20 cursor-pointer self-start md:self-auto"
+            >
+              <Ticket className="w-4 h-4" />
+              <span>+ Criar Novo Cupom</span>
+            </button>
+          </div>
+
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total de Cupons</span>
+                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-600">
+                  <Ticket className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl font-black text-slate-900 dark:text-white mt-2">{coupons.length}</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Cupons Ativos</span>
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-600">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-2">
+                {coupons.filter((c) => c.active).length}
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Bolsas 100% OFF</span>
+                <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/50 flex items-center justify-center text-purple-600">
+                  <Gift className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-2">
+                {coupons.filter(
+                  (c) =>
+                    (c.discountType === 'PERCENTAGE' && c.discountValue >= 100) ||
+                    (c.discountType === 'FIXED' && c.discountValue >= 37)
+                ).length}
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total de Usos</span>
+                <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/50 flex items-center justify-center text-amber-600">
+                  <Percent className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-2">
+                {coupons.reduce((acc, c) => acc + (c.usedCount || 0), 0)}
+              </p>
+            </div>
+          </div>
+
+          {/* Tabela de Cupons */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  Lista de Cupons Configurados
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Gerencie códigos ativos, valores de desconto e limites de uso.
+                </p>
+              </div>
+            </div>
+
+            {coupons.length === 0 ? (
+              <div className="p-12 text-center">
+                <Tag className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                <p className="font-bold text-slate-700 dark:text-slate-300">Nenhum cupom cadastrado ainda</p>
+                <p className="text-xs text-slate-400 mt-1">Clique no botão "+ Criar Novo Cupom" acima para criar o primeiro.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+                  <thead className="bg-slate-50 dark:bg-slate-800/60 font-black text-slate-500 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800">
+                    <tr>
+                      <th className="py-4 px-6">Código do Cupom</th>
+                      <th className="py-4 px-6">Tipo & Desconto</th>
+                      <th className="py-4 px-6">Preço para o Aluno</th>
+                      <th className="py-4 px-6">Usos / Limite</th>
+                      <th className="py-4 px-6">Expiração</th>
+                      <th className="py-4 px-6">Status</th>
+                      <th className="py-4 px-6 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {coupons.map((coupon) => {
+                      const isFree =
+                        (coupon.discountType === 'PERCENTAGE' && coupon.discountValue >= 100) ||
+                        (coupon.discountType === 'FIXED' && coupon.discountValue >= 37);
+
+                      const finalPrice = isFree
+                        ? 0
+                        : coupon.discountType === 'PERCENTAGE'
+                        ? Math.max(0, 37 * (1 - coupon.discountValue / 100))
+                        : Math.max(0, 37 - coupon.discountValue);
+
+                      const isExpired = coupon.expiresAt && new Date(coupon.expiresAt).getTime() < Date.now();
+                      const isLimitReached = typeof coupon.maxUses === 'number' && coupon.usedCount >= coupon.maxUses;
+
+                      return (
+                        <tr key={coupon.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition">
+                          <td className="py-4 px-6 font-bold">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-black px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg border border-slate-200 dark:border-slate-700 tracking-wider">
+                                {coupon.code}
+                              </span>
+                              <button
+                                onClick={() => handleCopyCouponCode(coupon.code)}
+                                title="Copiar código"
+                                className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+
+                          <td className="py-4 px-6">
+                            {isFree ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                <Gift className="w-3 h-3" />
+                                100% GRATUITO (BOLSA)
+                              </span>
+                            ) : coupon.discountType === 'PERCENTAGE' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                <Percent className="w-3 h-3" />
+                                {coupon.discountValue}% OFF
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                R$ {coupon.discountValue.toFixed(2).replace('.', ',')} OFF
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-4 px-6">
+                            {isFree ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="line-through text-slate-400 text-[11px]">R$ 37,00</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-black text-xs">
+                                  R$ 0,00 (GRÁTIS)
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <span className="line-through text-slate-400 text-[11px]">R$ 37,00</span>
+                                <span className="text-slate-900 dark:text-white font-black text-xs">
+                                  R$ {finalPrice.toFixed(2).replace('.', ',')}
+                                </span>
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="py-4 px-6">
+                            <span className="font-bold text-slate-800 dark:text-slate-200">
+                              {coupon.usedCount || 0}
+                            </span>
+                            <span className="text-slate-400">
+                              {' '}
+                              / {coupon.maxUses !== undefined ? coupon.maxUses : '∞'}
+                            </span>
+                            {isLimitReached && (
+                              <span className="ml-2 text-[9px] font-bold text-rose-500 uppercase">Esgotado</span>
+                            )}
+                          </td>
+
+                          <td className="py-4 px-6 text-slate-500 dark:text-slate-400">
+                            {coupon.expiresAt ? (
+                              <span className={isExpired ? 'text-rose-500 font-bold' : ''}>
+                                {new Date(coupon.expiresAt).toLocaleDateString('pt-BR')}
+                                {isExpired && ' (Expirado)'}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">Sem expiração</span>
+                            )}
+                          </td>
+
+                          <td className="py-4 px-6">
+                            <button
+                              onClick={() => handleToggleCoupon(coupon)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black cursor-pointer transition ${
+                                coupon.active && !isExpired && !isLimitReached
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300'
+                                  : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                              }`}
+                            >
+                              {coupon.active && !isExpired && !isLimitReached ? (
+                                <>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  Ativo
+                                </>
+                              ) : (
+                                <>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                  Inativo
+                                </>
+                              )}
+                            </button>
+                          </td>
+
+                          <td className="py-4 px-6 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleToggleCoupon(coupon)}
+                                title={coupon.active ? 'Desativar cupom' : 'Ativar cupom'}
+                                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCoupon(coupon.id, coupon.code)}
+                                title="Excluir cupom"
+                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Modal Criar Novo Cupom */}
+          {isCouponModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+              <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600">
+                      <Ticket className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900 dark:text-white">Novo Cupom de Desconto</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Configure as regras de desconto e limite</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsCouponModalOpen(false)}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveCoupon} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                      Código do Cupom (ex: ENEM20, BOLSA100)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="EX: PROMO30"
+                      value={cCode}
+                      onChange={(e) => setCCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''))}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 font-mono font-bold text-slate-900 dark:text-white uppercase tracking-wider focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                        Tipo de Desconto
+                      </label>
+                      <select
+                        value={cDiscountType}
+                        onChange={(e) => setCDiscountType(e.target.value as CouponDiscountType)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer"
+                      >
+                        <option value="PERCENTAGE">Percentual (% OFF)</option>
+                        <option value="FIXED">Valor Fixo (R$ OFF)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                        {cDiscountType === 'PERCENTAGE' ? 'Percentual (%)' : 'Valor (R$)'}
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max={cDiscountType === 'PERCENTAGE' ? 100 : 37}
+                        step={cDiscountType === 'PERCENTAGE' ? '1' : '0.01'}
+                        required
+                        value={cDiscountValue}
+                        onChange={(e) => setCDiscountValue(Number(e.target.value))}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Preview do Preço */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block">
+                        Preço para o Aluno
+                      </span>
+                      <span className="text-xs text-slate-400 line-through">Base: R$ 37,00</span>
+                    </div>
+                    <div className="text-right">
+                      {cDiscountType === 'PERCENTAGE' && cDiscountValue >= 100 ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                          <Gift className="w-3.5 h-3.5" />
+                          R$ 0,00 (100% BOLSA)
+                        </span>
+                      ) : (
+                        <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                          R${' '}
+                          {(
+                            cDiscountType === 'PERCENTAGE'
+                              ? Math.max(0, 37 * (1 - cDiscountValue / 100))
+                              : Math.max(0, 37 - cDiscountValue)
+                          )
+                            .toFixed(2)
+                            .replace('.', ',')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                        Limite de Usos (Opcional)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Ilimitado"
+                        value={cMaxUses}
+                        onChange={(e) => setCMaxUses(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                        Expira em (Opcional)
+                      </label>
+                      <input
+                        type="date"
+                        value={cExpiresAt}
+                        onChange={(e) => setCExpiresAt(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setIsCouponModalOpen(false)}
+                      className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-black hover:from-emerald-700 hover:to-teal-700 transition shadow-lg shadow-emerald-600/20 cursor-pointer"
+                    >
+                      Salvar Cupom
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

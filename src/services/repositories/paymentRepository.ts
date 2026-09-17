@@ -8,7 +8,11 @@ export const paymentRepository = {
    * Tenta primeiro o endpoint serverless /api/payments/create e possui fallback direto para
    * a API oficial da InfinitePay (que possui suporte nativo a CORS).
    */
-  async createCheckoutLink(): Promise<CreateCheckoutResponse> {
+  async createCheckoutLink(options?: {
+    couponCode?: string;
+    discountCents?: number;
+    finalPriceCents?: number;
+  }): Promise<CreateCheckoutResponse> {
     let token: string | undefined;
 
     if (isSupabaseConfigured && supabase) {
@@ -24,6 +28,42 @@ export const paymentRepository = {
     const customerName = currentUser?.name || 'Aluno ENEM 2026 PRO';
     const customerEmail = currentUser?.email || 'aluno@enem2026pro.com';
     const customerPhone = currentUser?.phone ? currentUser.phone.replace(/\D/g, '') : undefined;
+
+    const couponCode = options?.couponCode ? options.couponCode.trim().toUpperCase() : undefined;
+    const finalPriceCents =
+      typeof options?.finalPriceCents === 'number' ? options.finalPriceCents : 3700;
+
+    // Se o cupom zerou o valor (100% gratuito / bolsa)
+    if (finalPriceCents === 0 && couponCode) {
+      if (currentUser) {
+        currentUser.status = 'APROVADO';
+        db.setCurrentUser(currentUser, true);
+      }
+      db.incrementCouponUses(couponCode);
+
+      // Tenta sincronizar com o backend
+      try {
+        fetch('/api/payments/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUser?.id,
+            name: customerName,
+            email: customerEmail,
+            couponCode,
+            finalPriceCents: 0,
+          }),
+        }).catch(() => {});
+      } catch {}
+
+      return {
+        success: true,
+        alreadyActive: true,
+        isFreeCoupon: true,
+        finalPriceCents: 0,
+        message: 'Parabéns! Sua bolsa de estudos / cupom de 100% foi ativado com sucesso!',
+      };
+    }
 
     // 1. Tentar gerar via Backend Serverless (/api/payments/create)
     try {
@@ -42,16 +82,17 @@ export const paymentRepository = {
           name: customerName,
           email: customerEmail,
           phone: customerPhone,
+          couponCode,
+          discountCents: options?.discountCents,
+          finalPriceCents,
         }),
       });
 
       const contentType = res.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
         const data = await res.json();
-        if (data.success && data.checkoutUrl) {
-          return data;
-        }
-        if (data.alreadyActive) {
+        if (data.success && (data.checkoutUrl || data.alreadyActive)) {
+          if (couponCode) db.incrementCouponUses(couponCode);
           return data;
         }
       }
@@ -63,6 +104,9 @@ export const paymentRepository = {
     try {
       const appUrl = window.location.origin;
       const orderNsu = `enem-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+      const itemDesc = couponCode
+        ? `ENEM 2026 PRO — Acesso Completo (Cupom: ${couponCode})`
+        : 'ENEM 2026 PRO — Acesso Completo';
 
       const ipPayload = {
         handle: 'erick-siqueira-bg2',
@@ -77,8 +121,8 @@ export const paymentRepository = {
         items: [
           {
             quantity: 1,
-            price: 3700, // R$ 37,00 fixo
-            description: 'ENEM 2026 PRO — Acesso Completo',
+            price: finalPriceCents,
+            description: itemDesc,
           },
         ],
       };
@@ -104,12 +148,14 @@ export const paymentRepository = {
           (ipData.slug ? `https://pay.infinitepay.io/${ipData.slug}` : null);
 
         if (checkoutUrl) {
+          if (couponCode) db.incrementCouponUses(couponCode);
           return {
             success: true,
             checkoutUrl,
             orderId: orderNsu,
             externalReference: orderNsu,
             status: 'PENDING',
+            finalPriceCents,
           };
         }
       }
