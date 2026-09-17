@@ -1,14 +1,63 @@
 import crypto from 'crypto';
-import {
-  getOptionalSupabaseAdmin,
-  getAuthenticatedUser,
-  INFINITEPAY_API_URL,
-  FIXED_PRODUCT_PRICE_CENTS,
-  DEFAULT_HANDLE,
-  getAppBaseUrl,
-} from './_shared';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+export const INFINITEPAY_API_URL = 'https://api.checkout.infinitepay.io';
+export const FIXED_PRODUCT_PRICE_CENTS = 3700; // R$ 37,00 fixo e imutável
+export const DEFAULT_HANDLE = 'erick-siqueira-bg2';
+
+function getOptionalSupabaseAdmin(): SupabaseClient | null {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null;
+  }
+  try {
+    return createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function getAuthenticatedUser(req: any) {
+  const authHeader = req.headers?.authorization || req.headers?.Authorization;
+  if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.replace('Bearer ', '').trim();
+  if (!token) return null;
+
+  try {
+    const supabaseAdmin = getOptionalSupabaseAdmin();
+    if (!supabaseAdmin) return null;
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !data?.user) {
+      return null;
+    }
+    return data.user;
+  } catch {
+    return null;
+  }
+}
+
+function getAppBaseUrl(req: any): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+
+  const host = req?.headers?.['x-forwarded-host'] || req?.headers?.host;
+  const proto = req?.headers?.['x-forwarded-proto'] || 'https';
+  return host ? `${proto}://${host}` : 'https://enem2026pro.vercel.app';
+}
 
 export default async function handler(req: any, res: any) {
+  res.setHeader('Content-Type', 'application/json');
+
   // 1. Validar método HTTP
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -28,49 +77,29 @@ export default async function handler(req: any, res: any) {
 
     // 2. Se Supabase estiver conectado e houver usuário autenticado, verificar perfil
     if (authUser && supabase) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, name, email, phone, status, role')
-        .eq('id', authUser.id)
-        .maybeSingle();
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, name, email, phone, status, role')
+          .eq('id', authUser.id)
+          .maybeSingle();
 
-      if (profile) {
-        if (profile.status === 'APROVADO') {
-          return res.status(200).json({
-            success: true,
-            alreadyActive: true,
-            message: 'Seu acesso à plataforma já está totalmente liberado!',
-          });
+        if (profile) {
+          if (profile.status === 'APROVADO') {
+            return res.status(200).json({
+              success: true,
+              alreadyActive: true,
+              message: 'Seu acesso à plataforma já está totalmente liberado!',
+            });
+          }
+          customerName = profile.name || customerName;
+          customerEmail = profile.email || customerEmail;
+          if (profile.phone) {
+            customerPhone = profile.phone.replace(/\D/g, '');
+          }
         }
-        customerName = profile.name || customerName;
-        customerEmail = profile.email || customerEmail;
-        if (profile.phone) {
-          customerPhone = profile.phone.replace(/\D/g, '');
-        }
-      }
-
-      // Reutilizar pedido pendente recente nos últimos 30 minutos se já existir
-      const trintaMinutosAtras = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-      const { data: existingOrder } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('user_id', authUser.id)
-        .eq('status', 'PENDING')
-        .gt('created_at', trintaMinutosAtras)
-        .not('checkout_url', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (existingOrder && existingOrder.checkout_url) {
-        return res.status(200).json({
-          success: true,
-          orderId: existingOrder.id,
-          externalReference: existingOrder.external_reference,
-          checkoutUrl: existingOrder.checkout_url,
-          status: existingOrder.status,
-          reused: true,
-        });
+      } catch (profileErr) {
+        console.warn('[Payments] Erro ao consultar perfil no Supabase:', profileErr);
       }
     } else if (body.name) {
       customerName = body.name;
@@ -144,7 +173,7 @@ export default async function handler(req: any, res: any) {
       return res.status(502).json({
         success: false,
         error: 'GATEWAY_ERROR',
-        message: 'A InfinitePay não pôde gerar o link de checkout no momento. Verifique as credenciais.',
+        message: 'A InfinitePay não pôde gerar o link de checkout no momento. Verifique o handle.',
         details: errorText,
       });
     }
