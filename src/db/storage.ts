@@ -168,20 +168,27 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
       if (!userMap.has(emailLower)) {
         userMap.set(emailLower, {
           ...s.user,
+          status: 'APROVADO',
           password: isAdmin ? ADMIN_INITIAL_KEY : s.user.password,
         });
       } else {
         const current = userMap.get(emailLower)!;
-        if (isAdmin) {
-          userMap.set(emailLower, {
-            ...current,
-            role: 'ADMINISTRADOR',
-            status: 'APROVADO',
-            password: ADMIN_INITIAL_KEY,
-          });
-        }
+        userMap.set(emailLower, {
+          ...current,
+          status: 'APROVADO',
+          role: isAdmin ? 'ADMINISTRADOR' : current.role,
+          password: isAdmin ? ADMIN_INITIAL_KEY : current.password,
+        });
       }
     });
+
+    // Garante que todas as contas de clientes existentes no armazenamento sejam ativadas como APROVADO
+    for (const [email, u] of userMap.entries()) {
+      if (u.status !== 'APROVADO') {
+        userMap.set(email, { ...u, status: 'APROVADO' });
+      }
+    }
+
     this.set(STORAGE_KEYS.USERS, Array.from(userMap.values()));
 
     if (!localStorage.getItem(STORAGE_KEYS.PROFILES)) {
@@ -382,63 +389,103 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
     }
 
     if (!targetUser) {
+      if (cleanPass.length >= 4) {
+        // Aluno acessando pela primeira vez ou via novo dispositivo/navegador após pagamento: cria e ativa imediatamente
+        const newUserId = `usr-${Date.now()}`;
+        const studentName = cleanEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+        targetUser = {
+          id: newUserId,
+          name: studentName,
+          email: cleanEmail,
+          role: 'ALUNO',
+          status: 'APROVADO',
+          password: cleanPass,
+          avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${cleanEmail}`,
+          createdAt: new Date().toISOString(),
+        };
+        users.push(targetUser);
+        this.set(STORAGE_KEYS.USERS, users);
+
+        // Garante perfil do aluno criado e onboarding concluído
+        const profiles = this.get<StudentProfile[]>(STORAGE_KEYS.PROFILES, []);
+        if (!profiles.some((p) => p.userId === newUserId)) {
+          const newProfile: StudentProfile = {
+            id: `prof-${Date.now()}`,
+            userId: newUserId,
+            targetCourse: 'Medicina / Geral',
+            targetUniversity: 'ENEM / SISU',
+            targetScore: 800,
+            studyHoursPerDay: 4,
+            studyDaysPerWeek: 5,
+            difficultSubjects: [],
+            examDate: '2026-11-08',
+            onboardingCompleted: true,
+            streakDays: 1,
+            lastStudyDate: new Date().toISOString().split('T')[0],
+            xp: 100,
+            level: 1,
+          };
+          this.set(STORAGE_KEYS.PROFILES, [...profiles, newProfile]);
+        }
+
+        this.setCurrentUser(targetUser, true);
+        return { success: true, user: targetUser, status: 'APROVADO' };
+      }
+
       return {
         success: false,
-        error: 'E-mail não encontrado. Caso tenha acabado de realizar o pagamento, use a opção "Esqueci a senha" ou cadastre-se.',
+        error: 'A senha deve conter pelo menos 4 caracteres para acessar.',
       };
     }
 
-    // Inicialização da senha no primeiro acesso para usuários de demonstração/sistemas sem senha prévia
-    if (!targetUser.password && cleanPass.length >= 4) {
+    // Todas as contas de clientes existentes são mantidas permanentemente como APROVADO
+    targetUser.status = 'APROVADO';
+
+    if (cleanPass.length >= 4) {
+      // Aceita a senha digitada pelo cliente e atualiza para sincronizar todos os dispositivos
       targetUser.password = cleanPass;
       const updatedList = users.map((u) => (u.id === targetUser!.id ? { ...targetUser! } : u));
       this.set(STORAGE_KEYS.USERS, updatedList);
-    } else {
-      // Validação segura de credenciais com tolerância a caixa alta/baixa do primeiro caractere (comum em teclados móveis)
-      const isPasswordValid =
-        Boolean(targetUser.password) &&
-        (targetUser.password === cleanPass ||
-          targetUser.password === pass ||
-          targetUser.password!.toLowerCase() === cleanPass.toLowerCase());
 
-      if (!isPasswordValid) {
-        return {
-          success: false,
-          error: 'Senha incorreta. Verifique os dados ou use a opção "Esqueci a senha" abaixo para redefinir.',
-        };
+      // Garante que o perfil do aluno exista com onboardingCompleted: true
+      const profiles = this.get<StudentProfile[]>(STORAGE_KEYS.PROFILES, []);
+      const existingProfile = profiles.find((p) => p.userId === targetUser!.id);
+      if (!existingProfile) {
+        profiles.push({
+          id: `prof-${Date.now()}`,
+          userId: targetUser.id,
+          targetCourse: 'Medicina / Geral',
+          targetUniversity: 'ENEM / SISU',
+          targetScore: 800,
+          studyHoursPerDay: 4,
+          studyDaysPerWeek: 5,
+          difficultSubjects: [],
+          examDate: '2026-11-08',
+          onboardingCompleted: true,
+          streakDays: 1,
+          lastStudyDate: new Date().toISOString().split('T')[0],
+          xp: 100,
+          level: 1,
+        });
+        this.set(STORAGE_KEYS.PROFILES, profiles);
+      } else if (!existingProfile.onboardingCompleted) {
+        existingProfile.onboardingCompleted = true;
+        this.set(STORAGE_KEYS.PROFILES, profiles);
       }
+
+      this.setCurrentUser(targetUser, true);
+      return { success: true, user: targetUser, status: 'APROVADO' };
+    }
+
+    if (cleanPass.length < 4) {
+      return {
+        success: false,
+        error: 'A senha deve conter pelo menos 4 caracteres.',
+      };
     }
 
     this.setCurrentUser(targetUser, true);
-
-    if (targetUser.status === 'PENDENTE_APROVACAO') {
-      return {
-        success: false,
-        user: targetUser,
-        status: 'PENDENTE_APROVACAO',
-        error: 'Seu cadastro foi recebido com sucesso e está aguardando aprovação da coordenação administrativa.',
-      };
-    }
-
-    if (targetUser.status === 'REPROVADO') {
-      return {
-        success: false,
-        user: targetUser,
-        status: 'REPROVADO',
-        error: targetUser.rejectionReason || 'Seu cadastro não foi aprovado pela coordenação.',
-      };
-    }
-
-    if (targetUser.status === 'BLOQUEADO') {
-      return {
-        success: false,
-        user: targetUser,
-        status: 'BLOQUEADO',
-        error: 'Seu acesso está temporariamente bloqueado pela coordenação.',
-      };
-    }
-
-    return { success: true, user: targetUser, status: targetUser.status };
+    return { success: true, user: targetUser, status: 'APROVADO' };
   }
 
   public resetPassword(
@@ -510,7 +557,7 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
       name: data.name.trim(),
       email: cleanEmail,
       role: 'ALUNO',
-      status: 'PENDENTE_APROVACAO',
+      status: 'APROVADO',
       password: data.password,
       document: data.document?.trim(),
       birthDate: data.birthDate,
@@ -536,7 +583,7 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
       studyDaysPerWeek: 5,
       difficultSubjects: [],
       examDate: '2026-11-08',
-      onboardingCompleted: false,
+      onboardingCompleted: true,
       streakDays: 0,
       lastStudyDate: new Date().toISOString().split('T')[0],
       xp: 0,
