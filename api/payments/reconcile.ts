@@ -1,10 +1,43 @@
-import {
-  getSupabaseAdmin,
-  getAuthenticatedUser,
-  INFINITEPAY_API_URL,
-  FIXED_PRODUCT_PRICE_CENTS,
-  DEFAULT_HANDLE,
-} from './_shared';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+export const INFINITEPAY_API_URL = 'https://api.checkout.infinitepay.io';
+export const FIXED_PRODUCT_PRICE_CENTS = 3700;
+export const DEFAULT_HANDLE = 'erick-siqueira-bg2';
+
+function getSupabaseAdmin(): SupabaseClient {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Configuração ausente: SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY devem estar definidas no ambiente.');
+  }
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+async function getAuthenticatedUser(req: any) {
+  const authHeader = req.headers?.authorization || req.headers?.Authorization;
+  if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.replace('Bearer ', '').trim();
+  if (!token) return null;
+
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !data?.user) {
+      return null;
+    }
+    return data.user;
+  } catch {
+    return null;
+  }
+}
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
@@ -117,4 +150,3 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ success: false, message: err?.message || 'Erro interno na reconciliação.' });
   }
 }
-

@@ -43,51 +43,68 @@ export const paymentRepository = {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
+    const localCoupon = db.getCoupons().find(
+      (c) =>
+        c.code.toUpperCase() === cleanCode ||
+        c.code.replace(/[^A-Z0-9]/g, '').toUpperCase() === cleanCode.replace(/[^A-Z0-9]/g, '')
+    );
+
     try {
       const res = await fetch('/api/coupons/validate', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ code: cleanCode }),
+        body: JSON.stringify({ code: cleanCode, coupon: localCoupon }),
       });
 
-      const data = await res.json();
-      if (data.valid && data.coupon) {
-        return {
-          valid: true,
-          coupon: {
-            id: data.coupon.id,
-            code: data.coupon.code,
-            discountType: data.coupon.discountType,
-            discountValue: data.coupon.discountValue,
-            maxUses: data.coupon.maxUses,
-            usedCount: data.coupon.usedCount || 0,
-            expiresAt: data.coupon.expiresAt,
-            active: data.coupon.active,
-            createdAt: data.coupon.createdAt || new Date().toISOString(),
-          },
-          originalPriceCents: data.productPriceCents || 3700,
-          discountCents: data.discountCents || 0,
-          finalPriceCents: data.amountDueCents,
-        };
-      } else {
-        return {
-          valid: false,
-          error: data.message || 'Cupom inválido ou expirado.',
-          originalPriceCents: 3700,
-          discountCents: 0,
-          finalPriceCents: 3700,
-        };
+      if (res.ok) {
+        const data = await res.json();
+        if (data.valid && data.coupon) {
+          return {
+            valid: true,
+            coupon: {
+              id: data.coupon.id,
+              code: data.coupon.code,
+              discountType: data.coupon.discountType,
+              discountValue: data.coupon.discountValue,
+              maxUses: data.coupon.maxUses,
+              usedCount: data.coupon.usedCount || 0,
+              expiresAt: data.coupon.expiresAt,
+              active: data.coupon.active,
+              createdAt: data.coupon.createdAt || new Date().toISOString(),
+            },
+            originalPriceCents: data.productPriceCents || 3700,
+            discountCents: data.discountCents || 0,
+            finalPriceCents: data.amountDueCents,
+          };
+        } else {
+          return {
+            valid: false,
+            error: data.message || 'Cupom inválido ou expirado.',
+            originalPriceCents: 3700,
+            discountCents: 0,
+            finalPriceCents: 3700,
+          };
+        }
       }
     } catch (err: any) {
       console.error('[paymentRepository] Erro ao validar cupom no backend:', err);
-      return {
-        valid: false,
-        error: 'Não foi possível validar o cupom com o servidor. Tente novamente.',
-        originalPriceCents: 3700,
-        discountCents: 0,
-        finalPriceCents: 3700,
-      };
     }
+
+    // Se o backend estiver offline/inacessível mas o cupom estiver no storage local
+    if (localCoupon) {
+      const localResult = db.validateCoupon(cleanCode);
+      if (localResult.valid) {
+        return localResult;
+      }
+    }
+
+    return {
+      valid: false,
+      error: 'Não foi possível validar o cupom com o servidor. Tente novamente.',
+      originalPriceCents: 3700,
+      discountCents: 0,
+      finalPriceCents: 3700,
+    };
   },
 
   /**
@@ -115,6 +132,14 @@ export const paymentRepository = {
       finalPriceCents = 100;
     }
 
+    const localCoupon = couponCode
+      ? db.getCoupons().find(
+          (c) =>
+            c.code.toUpperCase() === couponCode ||
+            c.code.replace(/[^A-Z0-9]/g, '').toUpperCase() === couponCode.replace(/[^A-Z0-9]/g, '')
+        )
+      : undefined;
+
     // Se o cupom for de 100% gratuito (bolsa de estudos)
     if (finalPriceCents === 0 && couponCode) {
       try {
@@ -133,6 +158,7 @@ export const paymentRepository = {
             name: customerName,
             email: customerEmail,
             couponCode,
+            coupon: localCoupon,
             finalPriceCents: 0,
           }),
         });
@@ -181,6 +207,7 @@ export const paymentRepository = {
           email: customerEmail,
           phone: customerPhone,
           couponCode,
+          coupon: localCoupon,
           discountCents: options?.discountCents,
           finalPriceCents,
         }),

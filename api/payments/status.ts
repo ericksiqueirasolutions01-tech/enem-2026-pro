@@ -1,4 +1,44 @@
-import { getOptionalSupabaseAdmin, getAuthenticatedUser } from './_shared';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+function getOptionalSupabaseAdmin(): SupabaseClient | null {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null;
+  }
+  try {
+    return createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function getAuthenticatedUser(req: any) {
+  const authHeader = req.headers?.authorization || req.headers?.Authorization;
+  if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.replace('Bearer ', '').trim();
+  if (!token) return null;
+
+  try {
+    const supabaseAdmin = getOptionalSupabaseAdmin();
+    if (!supabaseAdmin) return null;
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !data?.user) {
+      return null;
+    }
+    return data.user;
+  } catch {
+    return null;
+  }
+}
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {

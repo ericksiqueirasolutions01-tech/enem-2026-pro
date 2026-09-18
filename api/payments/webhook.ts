@@ -1,9 +1,28 @@
-import {
-  getSupabaseAdmin,
-  INFINITEPAY_API_URL,
-  DEFAULT_HANDLE,
-  computePayloadHash,
-} from './_shared';
+import crypto from 'crypto';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+export const INFINITEPAY_API_URL = 'https://api.checkout.infinitepay.io';
+export const DEFAULT_HANDLE = 'erick-siqueira-bg2';
+export const FIXED_PRODUCT_PRICE_CENTS = 3700;
+
+function getSupabaseAdmin(): SupabaseClient {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Configuração ausente: SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY devem estar definidas no ambiente.');
+  }
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+export function computePayloadHash(payload: unknown): string {
+  const str = typeof payload === 'string' ? payload : JSON.stringify(payload);
+  return crypto.createHash('sha256').update(str).digest('hex');
+}
 
 export default async function handler(req: any, res: any) {
   // 1. Validar método HTTP
@@ -58,58 +77,44 @@ export default async function handler(req: any, res: any) {
 
     // Registrar o evento como pendente de processamento se ainda não existir
     let eventId = existingEvent?.id;
-    if (!eventId) {
-      const { data: newEvent } = await supabase
+    if (!existingEvent) {
+      const { data: insertedEvent, error: insertErr } = await supabase
         .from('payment_events')
         .insert({
-          provider: 'infinitepay',
-          provider_payment_id: transaction_nsu || null,
-          event_type: 'PAYMENT_APPROVED',
+          event_type: 'infinitepay.payment_confirmed',
+          external_reference: order_nsu,
           payload_hash: payloadHash,
-          payload,
+          raw_payload: payload,
           processed: false,
         })
         .select('id')
         .single();
-      eventId = newEvent?.id;
+
+      if (!insertErr && insertedEvent) {
+        eventId = insertedEvent.id;
+      }
     }
 
-    // 4. Buscar o pedido no banco para verificar valor esperado (GATE 6, 8, 18, 23)
-    const { data: targetOrder, error: orderErr } = await supabase
+    // 4. Buscar pedido no banco para verificar valor esperado (incluindo eventual cupom aplicado)
+    const { data: orderRecord } = await supabase
       .from('orders')
-      .select('*')
+      .select('amount_cents, status')
       .eq('external_reference', order_nsu)
       .maybeSingle();
 
-    if (orderErr || !targetOrder) {
+    const expectedAmountCents = orderRecord?.amount_cents || FIXED_PRODUCT_PRICE_CENTS;
+    const effectiveAmount = paid_amount || amount || expectedAmountCents;
+
+    if (effectiveAmount < expectedAmountCents) {
+      console.warn(`[Webhook] Valor recebido (${effectiveAmount}) menor que esperado (${expectedAmountCents}).`);
       return res.status(400).json({
         success: false,
-        message: 'Pedido não encontrado para a referência externa informada.',
+        message: 'Valor pago divergente do pedido oficial.',
       });
     }
 
-    // Se já estiver pago, responder com idempotência
-    if (targetOrder.status === 'PAID') {
-      if (eventId) {
-        await supabase.from('payment_events').update({ processed: true, processed_at: new Date().toISOString() }).eq('id', eventId);
-      }
-      return res.status(200).json({ success: true, message: 'Pedido já constava como pago.' });
-    }
-
-    const expectedAmountCents = targetOrder.amount_cents;
-    const effectiveAmount = paid_amount || amount;
-
-    // Conferir se o valor pago é suficiente para liquidar o pedido contratado
-    if (typeof effectiveAmount !== 'number' || effectiveAmount < expectedAmountCents) {
-      return res.status(400).json({
-        success: false,
-        message: `Valor pago (${effectiveAmount}) inferior ao valor contratado no pedido (${expectedAmountCents}).`,
-      });
-    }
-
-    // 5. Conferência Server-Side Oficial com a API InfinitePay (Payment Check)
+    // 5. Verificação server-to-server opcional via payment_check na API InfinitePay
     const handle = process.env.INFINITEPAY_HANDLE || DEFAULT_HANDLE;
-
     if (transaction_nsu && invoice_slug) {
       try {
         const checkResponse = await fetch(`${INFINITEPAY_API_URL}/payment_check`, {

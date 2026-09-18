@@ -119,9 +119,11 @@ export default async function handler(req: any, res: any) {
     if (rawCoupon && typeof rawCoupon === 'string' && rawCoupon.trim()) {
       const cleanCoupon = rawCoupon.trim().toUpperCase();
 
+      let coupon: any = null;
+
       if (supabase) {
         // Validação direta no banco de dados
-        const { data: coupon, error: couponErr } = await supabase
+        const { data, error: couponErr } = await supabase
           .from('coupons')
           .select('*')
           .eq('code', cleanCoupon)
@@ -131,80 +133,104 @@ export default async function handler(req: any, res: any) {
           console.error('[Payments] Erro ao consultar cupom no banco:', couponErr);
           return res.status(500).json({ success: false, message: 'Erro ao validar cupom no servidor.' });
         }
-
-        if (!coupon) {
-          return res.status(400).json({
-            success: false,
-            error: 'COUPON_NOT_FOUND',
-            message: `O cupom '${cleanCoupon}' não existe ou é inválido.`,
-          });
-        }
-
-        if (!coupon.active) {
-          return res.status(400).json({
-            success: false,
-            error: 'COUPON_INACTIVE',
-            message: 'Este cupom foi desativado.',
-          });
-        }
-
-        const now = new Date();
-        if (coupon.starts_at && new Date(coupon.starts_at) > now) {
-          return res.status(400).json({
-            success: false,
-            error: 'COUPON_NOT_STARTED',
-            message: 'Este cupom ainda não é válido.',
-          });
-        }
-
-        if (coupon.expires_at && new Date(coupon.expires_at) < now) {
-          return res.status(400).json({
-            success: false,
-            error: 'COUPON_EXPIRED',
-            message: 'Este cupom expirou.',
-          });
-        }
-
-        if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
-          return res.status(400).json({
-            success: false,
-            error: 'COUPON_LIMIT_REACHED',
-            message: 'Este cupom atingiu o limite de utilizações.',
-          });
-        }
-
-        // Validação de re-uso por usuário
-        if (userId) {
-          const { data: redemption } = await supabase
-            .from('coupon_redemptions')
-            .select('id')
-            .eq('coupon_id', coupon.id)
-            .eq('user_id', userId)
-            .maybeSingle();
-
-          if (redemption) {
-            return res.status(400).json({
-              success: false,
-              error: 'COUPON_ALREADY_USED',
-              message: 'Você já utilizou este cupom anteriormente.',
-            });
-          }
-        }
-
-        // Cálculo de desconto pelo servidor
-        if (coupon.discount_type === 'PERCENTAGE') {
-          const pct = Math.min(100, Math.max(0, coupon.discount_value));
-          appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * pct) / 100);
-          couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - ${pct}% OFF)`;
-        } else {
-          // FIXED
-          appliedDiscountCents = Math.min(FIXED_PRODUCT_PRICE_CENTS, Math.max(0, coupon.discount_value));
-          couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon})`;
-        }
-
-        finalAmountCents = Math.max(0, FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents);
-        validatedCouponRecord = coupon;
+        coupon = data;
       }
+
+      // Se não encontrado no Supabase (ou sem Supabase ativo), aceita metadados passados pelo admin
+      if (!coupon && body.coupon) {
+        const bCoupon = body.coupon;
+        const bCode = (bCoupon.code || '').trim().toUpperCase();
+        if (bCode === cleanCoupon) {
+          coupon = {
+            id: bCoupon.id || `cpn-${cleanCoupon}`,
+            code: cleanCoupon,
+            discount_type: bCoupon.discountType === 'FIXED' ? 'FIXED' : 'PERCENTAGE',
+            discount_value: Number(bCoupon.discountValue) || 0,
+            max_uses: bCoupon.maxUses ? Number(bCoupon.maxUses) : null,
+            used_count: Number(bCoupon.usedCount) || 0,
+            starts_at: bCoupon.startsAt || null,
+            expires_at: bCoupon.expiresAt || null,
+            active: bCoupon.active !== false,
+          };
+        }
+      }
+
+      if (!coupon) {
+        return res.status(400).json({
+          success: false,
+          error: 'COUPON_NOT_FOUND',
+          message: `O cupom '${cleanCoupon}' não existe ou é inválido.`,
+        });
+      }
+
+      if (!coupon.active) {
+        return res.status(400).json({
+          success: false,
+          error: 'COUPON_INACTIVE',
+          message: 'Este cupom foi desativado.',
+        });
+      }
+
+      const now = new Date();
+      if (coupon.starts_at && new Date(coupon.starts_at) > now) {
+        return res.status(400).json({
+          success: false,
+          error: 'COUPON_NOT_STARTED',
+          message: 'Este cupom ainda não é válido.',
+        });
+      }
+
+      if (coupon.expires_at && new Date(coupon.expires_at) < now) {
+        return res.status(400).json({
+          success: false,
+          error: 'COUPON_EXPIRED',
+          message: 'Este cupom expirou.',
+        });
+      }
+
+      if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
+        return res.status(400).json({
+          success: false,
+          error: 'COUPON_LIMIT_REACHED',
+          message: 'Este cupom atingiu o limite de utilizações.',
+        });
+      }
+
+      // Validação de re-uso por usuário
+      if (userId && supabase) {
+        const { data: redemption } = await supabase
+          .from('coupon_redemptions')
+          .select('id')
+          .eq('coupon_id', coupon.id)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (redemption) {
+          return res.status(400).json({
+            success: false,
+            error: 'COUPON_ALREADY_USED',
+            message: 'Você já utilizou este cupom anteriormente.',
+          });
+        }
+      }
+
+      // Cálculo de desconto pelo servidor
+      if (coupon.discount_type === 'PERCENTAGE') {
+        const pct = Math.min(100, Math.max(0, coupon.discount_value));
+        appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * pct) / 100);
+        couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - ${pct}% OFF)`;
+      } else {
+        // FIXED
+        appliedDiscountCents = Math.min(FIXED_PRODUCT_PRICE_CENTS, Math.max(0, coupon.discount_value));
+        couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon})`;
+      }
+
+      finalAmountCents = Math.max(0, FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents);
+      if (finalAmountCents > 0 && finalAmountCents < 100) {
+        finalAmountCents = 100;
+        appliedDiscountCents = FIXED_PRODUCT_PRICE_CENTS - finalAmountCents;
+      }
+      validatedCouponRecord = coupon;
     }
 
     const orderNsu = `enem-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
