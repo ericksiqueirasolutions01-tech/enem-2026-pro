@@ -63,54 +63,11 @@ const STORAGE_KEYS = {
   PDF_DRAFTS: 'enem2026_pdf_drafts_v3',
   MATERIAL_PROGRESS: 'enem2026_material_progress_v3',
   CUSTOM_LIBRARY_MATERIALS: 'enem2026_custom_library_materials_v3',
-  COUPONS: 'enem2026_coupons_v3',
+  COUPONS: 'enem2026_coupons_v4',
   AUDIT_LOGS: 'enem2026_audit_logs_v3',
 };
 
-export const DEFAULT_UNIVERSAL_COUPONS: Coupon[] = [
-  // Bolsas Integrais e Acesso Gratuito (100% OFF)
-  { id: 'cpn-bolsa100', code: 'BOLSA100', discountType: 'PERCENTAGE', discountValue: 100, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-bolsa', code: 'BOLSA', discountType: 'PERCENTAGE', discountValue: 100, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-gratis100', code: 'GRATIS100', discountType: 'PERCENTAGE', discountValue: 100, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-gratis', code: 'GRATIS', discountType: 'PERCENTAGE', discountValue: 100, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-isencao', code: 'ISENCAO', discountType: 'PERCENTAGE', discountValue: 100, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-isento', code: 'ISENTO', discountType: 'PERCENTAGE', discountValue: 100, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-100off', code: '100OFF', discountType: 'PERCENTAGE', discountValue: 100, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-
-  // Cupons Oficiais ENEM
-  { id: 'cpn-enem10', code: 'ENEM10', discountType: 'PERCENTAGE', discountValue: 10, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-enem20', code: 'ENEM20', discountType: 'PERCENTAGE', discountValue: 20, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-enem30', code: 'ENEM30', discountType: 'PERCENTAGE', discountValue: 30, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-enem40', code: 'ENEM40', discountType: 'PERCENTAGE', discountValue: 40, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-enem50', code: 'ENEM50', discountType: 'PERCENTAGE', discountValue: 50, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-enem2026', code: 'ENEM2026', discountType: 'PERCENTAGE', discountValue: 50, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-
-  // Cupons Promocionais
-  { id: 'cpn-promo10', code: 'PROMO10', discountType: 'PERCENTAGE', discountValue: 10, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-promo20', code: 'PROMO20', discountType: 'PERCENTAGE', discountValue: 20, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-promo30', code: 'PROMO30', discountType: 'PERCENTAGE', discountValue: 30, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-promo50', code: 'PROMO50', discountType: 'PERCENTAGE', discountValue: 50, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-
-  // Cupons Desconto
-  { id: 'cpn-desconto10', code: 'DESCONTO10', discountType: 'PERCENTAGE', discountValue: 10, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-desconto20', code: 'DESCONTO20', discountType: 'PERCENTAGE', discountValue: 20, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-desconto30', code: 'DESCONTO30', discountType: 'PERCENTAGE', discountValue: 30, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-desconto50', code: 'DESCONTO50', discountType: 'PERCENTAGE', discountValue: 50, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-
-  // Variações OFF
-  { id: 'cpn-10off', code: '10OFF', discountType: 'PERCENTAGE', discountValue: 10, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-20off', code: '20OFF', discountType: 'PERCENTAGE', discountValue: 20, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-30off', code: '30OFF', discountType: 'PERCENTAGE', discountValue: 30, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-50off', code: '50OFF', discountType: 'PERCENTAGE', discountValue: 50, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-
-  // Campanhas especiais
-  { id: 'cpn-medicina', code: 'MEDICINA', discountType: 'PERCENTAGE', discountValue: 30, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-medicina2026', code: 'MEDICINA2026', discountType: 'PERCENTAGE', discountValue: 30, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-aprovado', code: 'APROVADO', discountType: 'PERCENTAGE', discountValue: 20, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-aprovacao', code: 'APROVACAO', discountType: 'PERCENTAGE', discountValue: 20, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-vip2026', code: 'VIP2026', discountType: 'PERCENTAGE', discountValue: 30, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-  { id: 'cpn-aluno2026', code: 'ALUNO2026', discountType: 'PERCENTAGE', discountValue: 20, maxUses: 99999, usedCount: 0, expiresAt: null, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
-];
+export const DEFAULT_UNIVERSAL_COUPONS: Coupon[] = [];
 
 class StorageService {
   private listeners: Set<() => void> = new Set();
@@ -300,10 +257,9 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
       this.generateDefaultStudyPlan();
     }
 
-    // Inicializar cupons default se vazio
-    const existingCoupons = this.get<Coupon[]>(STORAGE_KEYS.COUPONS, []);
-    if (existingCoupons.length === 0) {
-      this.set(STORAGE_KEYS.COUPONS, DEFAULT_UNIVERSAL_COUPONS);
+    // Inicializar cupons vazio (sem cupons pré-cadastrados)
+    if (!localStorage.getItem(STORAGE_KEYS.COUPONS)) {
+      this.set(STORAGE_KEYS.COUPONS, []);
     }
   }
 
@@ -1508,14 +1464,7 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
   // GESTÃO DE CUPONS DE DESCONTO
   // ==========================================
   public getCoupons(): Coupon[] {
-    const saved = this.get<Coupon[]>(STORAGE_KEYS.COUPONS, []);
-    const savedMap = new Map(saved.map((c) => [c.code.toUpperCase(), c]));
-    DEFAULT_UNIVERSAL_COUPONS.forEach((def) => {
-      if (!savedMap.has(def.code.toUpperCase())) {
-        savedMap.set(def.code.toUpperCase(), def);
-      }
-    });
-    return Array.from(savedMap.values());
+    return this.get<Coupon[]>(STORAGE_KEYS.COUPONS, []);
   }
 
   public saveCoupon(coupon: Coupon): void {
@@ -1550,65 +1499,11 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
     }
 
     const coupons = this.getCoupons();
-    let coupon = coupons.find(
+    const coupon = coupons.find(
       (c) =>
         c.code.toUpperCase() === cleanCode ||
         c.code.replace(/[^A-Z0-9]/g, '').toUpperCase() === cleanCode.replace(/[^A-Z0-9]/g, '')
     );
-
-    // Fallback inteligente universal: aceita qualquer cupom promocional ou bolsa
-    if (!coupon) {
-      const alphaNum = cleanCode.replace(/[^A-Z0-9]/g, '');
-
-      // 1. Bolsas Integrais e Acesso Gratuito (100% OFF)
-      // Se contiver qualquer menção a bolsa, gratis, isencao, isento, free, zero ou 100
-      if (
-        alphaNum.includes('BOLSA') ||
-        alphaNum.includes('GRATIS') ||
-        alphaNum.includes('ISEN') ||
-        alphaNum.includes('FREE') ||
-        alphaNum.includes('ZERO') ||
-        alphaNum.includes('100')
-      ) {
-        coupon = {
-          id: `dyn-bolsa-${cleanCode.toLowerCase()}`,
-          code: cleanCode,
-          discountType: 'PERCENTAGE',
-          discountValue: 100,
-          usedCount: 0,
-          active: true,
-          createdAt: new Date().toISOString(),
-        };
-      } else {
-        // 2. Extrai qualquer porcentagem numérica presente no código (ex: AMIGO30, ERICK50, DESC25, 40OFF)
-        const numMatch = alphaNum.match(/(\d{1,3})/);
-        if (numMatch) {
-          const num = parseInt(numMatch[1], 10);
-          const pct = Math.min(100, Math.max(5, num));
-          coupon = {
-            id: `dyn-${cleanCode.toLowerCase()}`,
-            code: cleanCode,
-            discountType: 'PERCENTAGE',
-            discountValue: pct,
-            usedCount: 0,
-            active: true,
-            createdAt: new Date().toISOString(),
-          };
-        } else if (alphaNum.length >= 2) {
-          // 3. Qualquer outro código promocional de texto informado (ex: ERICK, AMIGO, VIP, ALUNO, etc.)
-          // Aplica 20% de desconto garantido para não barrar o aluno
-          coupon = {
-            id: `dyn-promo-${cleanCode.toLowerCase()}`,
-            code: cleanCode,
-            discountType: 'PERCENTAGE',
-            discountValue: 20,
-            usedCount: 0,
-            active: true,
-            createdAt: new Date().toISOString(),
-          };
-        }
-      }
-    }
 
     if (!coupon) {
       return {

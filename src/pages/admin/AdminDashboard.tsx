@@ -1733,7 +1733,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
                 <form onSubmit={handleSaveCoupon} className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                      Código do Cupom (ex: ENEM20, BOLSA100)
+                      Código do Cupom (ex: PROMO20, TESTE)
                     </label>
                     <input
                       type="text"

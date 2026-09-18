@@ -116,58 +116,23 @@ export default async function handler(req: any, res: any) {
 
     if (rawCoupon) {
       const cleanCoupon = String(rawCoupon).trim().toUpperCase();
-      const alphaNum = cleanCoupon.replace(/[^A-Z0-9]/g, '');
-
-      // 1. Bolsas Integrais e Acesso Gratuito (100% OFF)
-      if (
-        alphaNum.includes('BOLSA') ||
-        alphaNum.includes('GRATIS') ||
-        alphaNum.includes('ISEN') ||
-        alphaNum.includes('FREE') ||
-        alphaNum.includes('ZERO') ||
-        alphaNum.includes('100')
-      ) {
-        finalAmountCents = 0;
-        appliedDiscountCents = FIXED_PRODUCT_PRICE_CENTS;
-        couponDescription = `ENEM 2026 PRO — Acesso Gratuito (Cupom: ${cleanCoupon})`;
-      } else if (cleanCoupon === 'ENEM2026') {
-        appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * 50) / 100);
-        finalAmountCents = FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents;
-        couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - 50% OFF)`;
-      } else if (cleanCoupon === 'MEDICINA' || cleanCoupon === 'MEDICINA2026' || cleanCoupon === 'VIP2026') {
-        appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * 30) / 100);
-        finalAmountCents = FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents;
-        couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - 30% OFF)`;
-      } else {
-        // 2. Extrai porcentagem numérica do código (ex: AMIGO30, ERICK50, DESC25)
-        const numMatch = alphaNum.match(/(\d{1,3})/);
-        if (numMatch) {
-          const num = parseInt(numMatch[1], 10);
-          const pct = Math.min(100, Math.max(5, num));
-          if (pct === 100) {
-            finalAmountCents = 0;
-            appliedDiscountCents = FIXED_PRODUCT_PRICE_CENTS;
-            couponDescription = `ENEM 2026 PRO — Acesso Gratuito (Cupom: ${cleanCoupon})`;
-          } else {
-            appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * pct) / 100);
-            finalAmountCents = FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents;
-            couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - ${pct}% OFF)`;
-          }
-        } else if (body.discountPercent && Number(body.discountPercent) > 0 && Number(body.discountPercent) <= 100) {
-          const pct = Math.min(100, Math.max(0, Number(body.discountPercent)));
-          appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * pct) / 100);
-          finalAmountCents = Math.max(0, FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents);
-          couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - ${pct}% OFF)`;
-        } else if (body.discountCents && Number(body.discountCents) > 0) {
-          appliedDiscountCents = Math.min(FIXED_PRODUCT_PRICE_CENTS, Number(body.discountCents));
-          finalAmountCents = Math.max(0, FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents);
-          couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon})`;
-        } else if (alphaNum.length >= 2) {
-          // 3. Qualquer outro código promocional de texto (ex: ERICK, AMIGO, VIP, ALUNO)
-          appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * 20) / 100);
-          finalAmountCents = FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents;
-          couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - 20% OFF)`;
-        }
+      if (typeof body.discountCents === 'number' && body.discountCents > 0) {
+        appliedDiscountCents = Math.min(FIXED_PRODUCT_PRICE_CENTS, Number(body.discountCents));
+        finalAmountCents = Math.max(0, FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents);
+        couponDescription = finalAmountCents === 0
+          ? `ENEM 2026 PRO — Acesso Gratuito (Cupom: ${cleanCoupon})`
+          : `ENEM 2026 PRO (Cupom: ${cleanCoupon})`;
+      } else if (typeof body.finalPriceCents === 'number' && body.finalPriceCents >= 0 && body.finalPriceCents <= FIXED_PRODUCT_PRICE_CENTS) {
+        finalAmountCents = body.finalPriceCents;
+        appliedDiscountCents = FIXED_PRODUCT_PRICE_CENTS - finalAmountCents;
+        couponDescription = finalAmountCents === 0
+          ? `ENEM 2026 PRO — Acesso Gratuito (Cupom: ${cleanCoupon})`
+          : `ENEM 2026 PRO (Cupom: ${cleanCoupon})`;
+      } else if (body.discountPercent && Number(body.discountPercent) > 0 && Number(body.discountPercent) <= 100) {
+        const pct = Math.min(100, Math.max(0, Number(body.discountPercent)));
+        appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * pct) / 100);
+        finalAmountCents = Math.max(0, FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents);
+        couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - ${pct}% OFF)`;
       }
     }
 
