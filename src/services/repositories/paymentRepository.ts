@@ -87,10 +87,57 @@ export const paymentRepository = {
         }
       }
     } catch (err: any) {
-      console.error('[paymentRepository] Erro ao validar cupom no backend:', err);
+      console.error('[paymentRepository] Erro ao validar cupom em /api/coupons/validate:', err);
     }
 
-    // Se o backend estiver offline/inacessível mas o cupom estiver no storage local
+    // 2. Fallback de validação server-side via /api/payments/create (action: 'validate')
+    try {
+      const resFallback = await fetch('/api/payments/create', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          action: 'validate',
+          code: cleanCode,
+          couponCode: cleanCode,
+          coupon: localCoupon,
+        }),
+      });
+
+      if (resFallback.ok) {
+        const data = await resFallback.json();
+        if (data.valid && data.coupon) {
+          return {
+            valid: true,
+            coupon: {
+              id: data.coupon.id,
+              code: data.coupon.code,
+              discountType: data.coupon.discountType,
+              discountValue: data.coupon.discountValue,
+              maxUses: data.coupon.maxUses,
+              usedCount: data.coupon.usedCount || 0,
+              expiresAt: data.coupon.expiresAt,
+              active: data.coupon.active,
+              createdAt: data.coupon.createdAt || new Date().toISOString(),
+            },
+            originalPriceCents: data.productPriceCents || 3700,
+            discountCents: data.discountCents || 0,
+            finalPriceCents: data.amountDueCents,
+          };
+        } else if (data.message && data.error !== 'COUPON_NOT_FOUND') {
+          return {
+            valid: false,
+            error: data.message,
+            originalPriceCents: 3700,
+            discountCents: 0,
+            finalPriceCents: 3700,
+          };
+        }
+      }
+    } catch (err2: any) {
+      console.warn('[paymentRepository] Fallback via /api/payments/create indisponível:', err2);
+    }
+
+    // 3. Fallback para cupons cadastrados pelo administrador no cliente
     if (localCoupon) {
       const localResult = db.validateCoupon(cleanCode);
       if (localResult.valid) {
@@ -100,7 +147,7 @@ export const paymentRepository = {
 
     return {
       valid: false,
-      error: 'Não foi possível validar o cupom com o servidor. Tente novamente.',
+      error: 'Cupom inválido ou expirado.',
       originalPriceCents: 3700,
       discountCents: 0,
       finalPriceCents: 3700,

@@ -72,6 +72,90 @@ export default async function handler(req: any, res: any) {
     const authUser = await getAuthenticatedUser(req);
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
 
+    // Validação direta de cupom via action: 'validate' (compatibilidade universal Vercel)
+    if (body.action === 'validate' || req.query?.action === 'validate') {
+      const rawC = body.code || body.couponCode || (typeof body.coupon === 'string' ? body.coupon : body.coupon?.code);
+      if (!rawC || typeof rawC !== 'string' || !rawC.trim()) {
+        return res.status(400).json({ valid: false, error: 'COUPON_NOT_FOUND', message: 'Informe o código do cupom.' });
+      }
+      const cClean = rawC.trim().toUpperCase();
+      let vCoupon: any = null;
+
+      if (supabase) {
+        const { data } = await supabase.from('coupons').select('*').eq('code', cClean).maybeSingle();
+        vCoupon = data;
+      }
+
+      if (!vCoupon && body.coupon && typeof body.coupon === 'object') {
+        const bCode = (body.coupon.code || '').trim().toUpperCase();
+        if (bCode === cClean) {
+          vCoupon = {
+            id: body.coupon.id || `cpn-${cClean}`,
+            code: cClean,
+            discount_type: body.coupon.discountType === 'FIXED' ? 'FIXED' : 'PERCENTAGE',
+            discount_value: Number(body.coupon.discountValue) || 0,
+            max_uses: body.coupon.maxUses ? Number(body.coupon.maxUses) : null,
+            used_count: Number(body.coupon.usedCount) || 0,
+            starts_at: body.coupon.startsAt || null,
+            expires_at: body.coupon.expiresAt || null,
+            active: body.coupon.active !== false,
+          };
+        }
+      }
+
+      if (!vCoupon) {
+        return res.status(200).json({ valid: false, error: 'COUPON_NOT_FOUND', message: 'Cupom inexistente ou inválido.' });
+      }
+
+      if (!vCoupon.active) {
+        return res.status(200).json({ valid: false, error: 'COUPON_INACTIVE', message: 'Este cupom foi desativado.' });
+      }
+
+      const now = new Date();
+      if (vCoupon.starts_at && new Date(vCoupon.starts_at) > now) {
+        return res.status(200).json({ valid: false, error: 'COUPON_NOT_STARTED', message: 'Este cupom ainda não é válido.' });
+      }
+      if (vCoupon.expires_at && new Date(vCoupon.expires_at) < now) {
+        return res.status(200).json({ valid: false, error: 'COUPON_EXPIRED', message: 'Este cupom está expirado.' });
+      }
+      if (vCoupon.max_uses && vCoupon.used_count >= vCoupon.max_uses) {
+        return res.status(200).json({ valid: false, error: 'COUPON_LIMIT_REACHED', message: 'Este cupom atingiu o limite máximo de utilizações.' });
+      }
+
+      let dCents = 0;
+      if (vCoupon.discount_type === 'PERCENTAGE') {
+        const pct = Math.min(100, Math.max(0, vCoupon.discount_value));
+        dCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * pct) / 100);
+      } else {
+        dCents = Math.min(FIXED_PRODUCT_PRICE_CENTS, Math.max(0, vCoupon.discount_value));
+      }
+
+      let dueCents = Math.max(0, FIXED_PRODUCT_PRICE_CENTS - dCents);
+      if (dueCents > 0 && dueCents < 100) {
+        dueCents = 100;
+        dCents = FIXED_PRODUCT_PRICE_CENTS - dueCents;
+      }
+
+      return res.status(200).json({
+        valid: true,
+        coupon: {
+          id: vCoupon.id,
+          code: vCoupon.code,
+          discountType: vCoupon.discount_type,
+          discountValue: vCoupon.discount_value,
+          active: vCoupon.active,
+          expiresAt: vCoupon.expires_at,
+        },
+        productPriceCents: FIXED_PRODUCT_PRICE_CENTS,
+        discountCents: dCents,
+        amountDueCents: dueCents,
+        isFree: dueCents === 0,
+        message: dueCents === 0
+          ? 'Cupom de 100% de desconto! Acesso gratuito liberado.'
+          : `Cupom aplicado! Desconto de R$ ${(dCents / 100).toFixed(2).replace('.', ',')}`,
+      });
+    }
+
     // Obter dados do cliente
     let userId = authUser?.id || body.userId;
     let customerName = 'Aluno ENEM 2026 PRO';

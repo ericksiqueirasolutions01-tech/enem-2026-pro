@@ -43,13 +43,16 @@ async function getAuthenticatedUser(req: any) {
 }
 
 export default async function handler(req: any, res: any) {
+  res.setHeader('Content-Type', 'application/json');
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ success: false, message: 'Método não permitido.' });
   }
 
   try {
-    const rawCode = req.body?.code || req.body?.couponCode || req.body?.coupon;
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const rawCode = body?.code || body?.couponCode || (typeof body?.coupon === 'string' ? body?.coupon : body?.coupon?.code);
     if (!rawCode || typeof rawCode !== 'string' || !rawCode.trim()) {
       return res.status(400).json({
         valid: false,
