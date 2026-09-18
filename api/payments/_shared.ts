@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 export const INFINITEPAY_API_URL = 'https://api.checkout.infinitepay.io';
 export const FIXED_PRODUCT_PRICE_CENTS = 3700; // R$ 37,00 estrito e imutável no backend

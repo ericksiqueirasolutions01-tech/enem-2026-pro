@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 export const INFINITEPAY_API_URL = 'https://api.checkout.infinitepay.io';
