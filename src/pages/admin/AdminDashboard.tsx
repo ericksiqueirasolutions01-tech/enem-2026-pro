@@ -145,7 +145,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
     }
   };
 
-  const handleSaveCoupon = (e: React.FormEvent) => {
+  const loadCoupons = async () => {
+    try {
+      const serverCoupons = await paymentRepository.listAdminCoupons();
+      if (serverCoupons && serverCoupons.length > 0) {
+        setCoupons(serverCoupons);
+        return;
+      }
+    } catch {}
+    setCoupons(db.getCoupons());
+  };
+
+  useEffect(() => {
+    loadCoupons();
+  }, []);
+
+  const handleSaveCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanCode = cCode.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
     if (!cleanCode) {
@@ -179,29 +194,58 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
       expiresAt: cExpiresAt ? new Date(cExpiresAt).toISOString() : undefined,
     };
 
+    // 1. Salvar no Supabase via API backend
+    try {
+      const apiRes = await paymentRepository.createAdminCoupon({
+        code: newCoupon.code,
+        discountType: newCoupon.discountType,
+        discountValue: newCoupon.discountValue,
+        maxUses: newCoupon.maxUses ?? undefined,
+        expiresAt: newCoupon.expiresAt ?? undefined,
+      });
+
+      if (!apiRes.success && apiRes.message) {
+        setAdminToast(`Aviso: ${apiRes.message}`);
+      }
+    } catch (err: any) {
+      console.warn('Erro ao salvar cupom na API:', err);
+    }
+
+    // 2. Sincronizar cache local e recarregar
     db.saveCoupon(newCoupon);
-    setCoupons(db.getCoupons());
+    await loadCoupons();
     setIsCouponModalOpen(false);
     setCCode('');
     setCDiscountValue(20);
     setCMaxUses('');
     setCExpiresAt('');
-    setAdminToast(`Cupom ${newCoupon.code} criado e ativado com sucesso!`);
+    setAdminToast(`Cupom ${newCoupon.code} criado e sincronizado com sucesso!`);
     setTimeout(() => setAdminToast(null), 4000);
   };
 
-  const handleToggleCoupon = (coupon: Coupon) => {
-    const updated = { ...coupon, active: !coupon.active };
+  const handleToggleCoupon = async (coupon: Coupon) => {
+    const updatedActive = !coupon.active;
+    try {
+      await paymentRepository.updateAdminCoupon(coupon.id, { active: updatedActive });
+    } catch (err) {
+      console.warn('Erro ao atualizar cupom na API:', err);
+    }
+    const updated = { ...coupon, active: updatedActive };
     db.saveCoupon(updated);
-    setCoupons(db.getCoupons());
+    await loadCoupons();
     setAdminToast(`Cupom ${coupon.code} ${updated.active ? 'ativado' : 'desativado'}.`);
     setTimeout(() => setAdminToast(null), 3000);
   };
 
-  const handleDeleteCoupon = (id: string, code: string) => {
+  const handleDeleteCoupon = async (id: string, code: string) => {
     if (window.confirm(`Deseja realmente excluir o cupom "${code}"? Esta ação não pode ser desfeita.`)) {
+      try {
+        await paymentRepository.deleteAdminCoupon(id);
+      } catch (err) {
+        console.warn('Erro ao deletar cupom na API:', err);
+      }
       db.deleteCoupon(id);
-      setCoupons(db.getCoupons());
+      await loadCoupons();
       setAdminToast(`Cupom ${code} excluído com sucesso.`);
       setTimeout(() => setAdminToast(null), 3000);
     }

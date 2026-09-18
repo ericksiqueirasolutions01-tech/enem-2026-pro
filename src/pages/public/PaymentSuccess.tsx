@@ -16,6 +16,11 @@ export const PaymentSuccess: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [attempts, setAttempts] = useState(0);
 
+  const [currentUser, setCurrentUser] = useState<any>(() => db.getCurrentUser());
+  const [setupEmail, setSetupEmail] = useState('');
+  const [setupPassword, setSetupPassword] = useState('');
+  const [setupError, setSetupError] = useState<string | null>(null);
+
   const triggerConfetti = () => {
     try {
       confetti({
@@ -46,13 +51,12 @@ export const PaymentSuccess: React.FC = () => {
           }
         }
 
-        // Consultar status do pedido
+        // Consultar status do pedido diretamente no backend
         const statusRes = await paymentRepository.checkPaymentStatus(orderId || undefined);
         if (statusRes.isPaid || statusRes.userStatus === 'APROVADO') {
           setIsApproved(true);
           setIsVerifying(false);
           triggerConfetti();
-          // Atualiza usuário na memória
           if (freshUser) {
             freshUser.status = 'APROVADO';
             db.setCurrentUser(freshUser, true);
@@ -60,46 +64,26 @@ export const PaymentSuccess: React.FC = () => {
           return;
         }
 
-        // Se o aluno retornou da InfinitePay com orderId válido e após 2 tentativas o webhook demorou:
-        if (orderId && attempts >= 2) {
-          setIsApproved(true);
-          setIsVerifying(false);
-          triggerConfetti();
-          if (freshUser) {
-            freshUser.status = 'APROVADO';
-            db.setCurrentUser(freshUser, true);
-            db.approveUser(freshUser.id);
-          }
-          return;
-        }
-
-        // Continuar tentando até 15 vezes (15 * 2s = 30s)
-        if (attempts < 15) {
-          setAttempts((prev) => prev + 1);
-          timer = setTimeout(checkStatus, 2000);
-        } else {
-          setIsApproved(true);
-          setIsVerifying(false);
-          triggerConfetti();
-          if (freshUser) {
-            freshUser.status = 'APROVADO';
-            db.setCurrentUser(freshUser, true);
-            db.approveUser(freshUser.id);
-          }
-        }
-      } catch (err: any) {
-        if (attempts < 5) {
+        // Tenta novamente por até 8 vezes com intervalo de 2.5s (20s totais de polling)
+        if (attempts < 8) {
           setAttempts((prev) => prev + 1);
           timer = setTimeout(checkStatus, 2500);
         } else {
-          setIsApproved(true);
+          // FAIL-CLOSED: tempo esgotado sem confirmação do backend -> NÃO ativa acesso
+          setIsApproved(false);
           setIsVerifying(false);
-          triggerConfetti();
-          if (freshUser) {
-            freshUser.status = 'APROVADO';
-            db.setCurrentUser(freshUser, true);
-            db.approveUser(freshUser.id);
-          }
+          setErrorMessage(
+            'O pagamento ainda não foi confirmado pela operadora InfinitePay. Se você acabou de pagar no Pix ou Cartão, aguarde 1 a 2 minutos para a compensação e verifique seu status.'
+          );
+        }
+      } catch (err: any) {
+        if (attempts < 4) {
+          setAttempts((prev) => prev + 1);
+          timer = setTimeout(checkStatus, 2500);
+        } else {
+          setIsApproved(false);
+          setIsVerifying(false);
+          setErrorMessage('Não foi possível confirmar o pagamento junto ao servidor. Tente atualizar a página.');
         }
       }
     };
@@ -109,40 +93,24 @@ export const PaymentSuccess: React.FC = () => {
     return () => clearTimeout(timer);
   }, [orderId, attempts]);
 
-  const [currentUser, setCurrentUser] = useState<any>(() => db.getCurrentUser());
-  const [setupEmail, setSetupEmail] = useState('');
-  const [setupPassword, setSetupPassword] = useState('');
-  const [setupError, setSetupError] = useState<string | null>(null);
-
   const handleEntrarNaPlataforma = () => {
-    let u = currentUser || db.getCurrentUser();
-
-    // Se o usuário não estiver na sessão mas informou e-mail e senha no formulário rápido
-    if (!u && setupEmail.trim() && setupPassword.trim()) {
-      if (setupPassword.length < 4) {
-        setSetupError('A senha deve conter no mínimo 4 caracteres.');
-        return;
-      }
-      const cleanEmail = setupEmail.trim().toLowerCase();
-      const res = db.resetPassword(cleanEmail, setupPassword.trim());
-      if (res.success && res.user) {
-        u = res.user;
-        u.status = 'APROVADO';
-        db.setCurrentUser(u, true);
-        db.approveUser(u.id);
-        navigate('/app');
-        return;
-      }
+    if (!isApproved) {
+      navigate('/aguardando-aprovacao');
+      return;
     }
 
+    const u = currentUser || db.getCurrentUser();
     if (u) {
-      u.status = 'APROVADO';
-      db.setCurrentUser(u, true);
-      db.approveUser(u.id);
       navigate('/app');
     } else {
-      window.location.href = 'https://enem-2026-pro.vercel.app/login';
+      navigate('/login');
     }
+  };
+
+  const handleRetryVerification = () => {
+    setIsVerifying(true);
+    setErrorMessage(null);
+    setAttempts(0);
   };
 
   return (
@@ -158,9 +126,13 @@ export const PaymentSuccess: React.FC = () => {
             <div className="w-16 h-16 rounded-3xl bg-emerald-500/15 border-2 border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/20">
               <CheckCircle2 className="w-9 h-9 animate-bounce" />
             </div>
-          ) : (
+          ) : isVerifying ? (
             <div className="w-16 h-16 rounded-3xl bg-brand-500/15 border-2 border-brand-500/40 flex items-center justify-center text-brand-400">
               <RotateCw className="w-8 h-8 animate-spin" />
+            </div>
+          ) : (
+            <div className="w-16 h-16 rounded-3xl bg-amber-500/15 border-2 border-amber-500/40 flex items-center justify-center text-amber-400">
+              <AlertCircle className="w-8 h-8" />
             </div>
           )}
         </div>
@@ -171,20 +143,32 @@ export const PaymentSuccess: React.FC = () => {
             className={`text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${
               isApproved
                 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                : 'bg-brand-500/10 text-brand-300 border-brand-500/30'
+                : isVerifying
+                ? 'bg-brand-500/10 text-brand-300 border-brand-500/30'
+                : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
             }`}
           >
-            {isApproved ? 'Acesso Confirmado e Liberado' : 'Transação em Processamento'}
+            {isApproved
+              ? 'Acesso Confirmado e Liberado'
+              : isVerifying
+              ? 'Confirmando Transação...'
+              : 'Aguardando Compensação'}
           </span>
 
           <h2 className="text-xl sm:text-2xl font-black text-white">
-            {isApproved ? 'Seja Bem-vindo ao ENEM 2026 PRO!' : 'Confirmando seu Pagamento...'}
+            {isApproved
+              ? 'Seja Bem-vindo ao ENEM 2026 PRO!'
+              : isVerifying
+              ? 'Confirmando seu Pagamento...'
+              : 'Pagamento Ainda Pendente'}
           </h2>
 
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-sm mx-auto">
             {isApproved
-              ? 'Seu pagamento de R$ 37,00 foi aprovado com sucesso pela InfinitePay. Seu acesso completo já está ativo.'
-              : 'Recebemos a notificação da operadora e estamos sincronizando a liberação do seu acesso em nossos servidores.'}
+              ? 'Seu pagamento foi confirmado com sucesso pela InfinitePay. Seu acesso completo já está ativo!'
+              : isVerifying
+              ? 'Estamos sincronizando a confirmação do pagamento com nossos servidores...'
+              : 'Não identificamos a confirmação bancária deste pagamento ainda.'}
           </p>
         </div>
 
@@ -198,70 +182,31 @@ export const PaymentSuccess: React.FC = () => {
         {/* Ações */}
         <div className="space-y-3 pt-2">
           {isApproved ? (
-            currentUser ? (
-              <button
-                onClick={handleEntrarNaPlataforma}
-                className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:opacity-95 text-white font-black text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/30 active:scale-98"
-              >
-                <span>ENTRAR NA PLATAFORMA</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            ) : (
-              <div className="text-left space-y-3 p-4 bg-slate-800/80 rounded-2xl border border-slate-700">
-                <p className="text-xs font-bold text-slate-200">
-                  Informe seu e-mail e crie sua senha para entrar agora:
-                </p>
-                {setupError && (
-                  <div className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-1.5">
-                    <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                    <span>{setupError}</span>
-                  </div>
-                )}
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">E-mail</label>
-                  <input
-                    type="email"
-                    value={setupEmail}
-                    onChange={(e) => setSetupEmail(e.target.value)}
-                    placeholder="seu.email@exemplo.com"
-                    className="w-full text-xs font-bold text-white bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus:border-emerald-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Senha</label>
-                  <input
-                    type="password"
-                    value={setupPassword}
-                    onChange={(e) => setSetupPassword(e.target.value)}
-                    placeholder="Mínimo 4 caracteres"
-                    className="w-full text-xs font-bold text-white bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus:border-emerald-500 focus:outline-none"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleEntrarNaPlataforma}
-                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:opacity-95 text-white font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/30"
-                >
-                  <span>Salvar Senha e Entrar</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-                <div className="pt-1 text-center">
-                  <a
-                    href="https://enem-2026-pro.vercel.app/login"
-                    className="text-xs font-bold text-emerald-400 hover:text-emerald-300 underline"
-                  >
-                    Já tem conta cadastrada? Ir para Login &rarr;
-                  </a>
-                </div>
-              </div>
-            )
+            <button
+              onClick={handleEntrarNaPlataforma}
+              className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:opacity-95 text-white font-black text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/30 active:scale-98"
+            >
+              <span>ENTRAR NA PLATAFORMA</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
           ) : (
             <div className="space-y-2">
               <button
+                type="button"
+                onClick={handleRetryVerification}
+                disabled={isVerifying}
+                className="w-full py-3 px-4 rounded-xl bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-brand-600/20"
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${isVerifying ? 'animate-spin' : ''}`} />
+                <span>{isVerifying ? 'Verificando...' : 'Verificar Pagamento Novamente'}</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => navigate('/aguardando-aprovacao')}
                 className="w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all cursor-pointer border border-slate-700"
               >
-                Voltar à tela de status
+                Voltar à tela de pagamento
               </button>
             </div>
           )}
@@ -269,10 +214,9 @@ export const PaymentSuccess: React.FC = () => {
 
         <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-500 flex items-center justify-center gap-1.5">
           <Shield className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Autenticado e verificado via InfinitePay / CloudWalk.</span>
+          <span>Autenticado e verificado com segurança via InfinitePay.</span>
         </div>
       </div>
     </div>
   );
 };
-

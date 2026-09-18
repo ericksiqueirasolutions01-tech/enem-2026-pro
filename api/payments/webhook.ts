@@ -1,7 +1,6 @@
 import {
   getSupabaseAdmin,
   INFINITEPAY_API_URL,
-  FIXED_PRODUCT_PRICE_CENTS,
   DEFAULT_HANDLE,
   computePayloadHash,
 } from './_shared';
@@ -46,7 +45,7 @@ export default async function handler(req: any, res: any) {
     const supabase = getSupabaseAdmin();
     const payloadHash = computePayloadHash(payload);
 
-    // 3. Verificar Idempotência: Se já processamos esse exato evento, responder imediatamente com sucesso
+    // 3. Verificar Idempotência: Se já processamos esse exato evento, responder imediatamente com sucesso (GATE 7)
     const { data: existingEvent } = await supabase
       .from('payment_events')
       .select('id, processed')
@@ -75,9 +74,40 @@ export default async function handler(req: any, res: any) {
       eventId = newEvent?.id;
     }
 
-    // 4. Conferência Server-Side Oficial com a API InfinitePay (Payment Check)
-    // Garantia Zero-Trust: não confia cegamente no corpo do webhook sem validação na adquirente
-    let paymentVerified = false;
+    // 4. Buscar o pedido no banco para verificar valor esperado (GATE 6, 8, 18, 23)
+    const { data: targetOrder, error: orderErr } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('external_reference', order_nsu)
+      .maybeSingle();
+
+    if (orderErr || !targetOrder) {
+      return res.status(400).json({
+        success: false,
+        message: 'Pedido não encontrado para a referência externa informada.',
+      });
+    }
+
+    // Se já estiver pago, responder com idempotência
+    if (targetOrder.status === 'PAID') {
+      if (eventId) {
+        await supabase.from('payment_events').update({ processed: true, processed_at: new Date().toISOString() }).eq('id', eventId);
+      }
+      return res.status(200).json({ success: true, message: 'Pedido já constava como pago.' });
+    }
+
+    const expectedAmountCents = targetOrder.amount_cents;
+    const effectiveAmount = paid_amount || amount;
+
+    // Conferir se o valor pago é suficiente para liquidar o pedido contratado
+    if (typeof effectiveAmount !== 'number' || effectiveAmount < expectedAmountCents) {
+      return res.status(400).json({
+        success: false,
+        message: `Valor pago (${effectiveAmount}) inferior ao valor contratado no pedido (${expectedAmountCents}).`,
+      });
+    }
+
+    // 5. Conferência Server-Side Oficial com a API InfinitePay (Payment Check)
     const handle = process.env.INFINITEPAY_HANDLE || DEFAULT_HANDLE;
 
     if (transaction_nsu && invoice_slug) {
@@ -102,9 +132,12 @@ export default async function handler(req: any, res: any) {
           if (
             checkData.success === true &&
             checkData.paid === true &&
-            (checkData.amount ?? 0) >= FIXED_PRODUCT_PRICE_CENTS
+            (checkData.amount ?? 0) < expectedAmountCents
           ) {
-            paymentVerified = true;
+            return res.status(400).json({
+              success: false,
+              message: 'Conferência InfinitePay indicou valor pago menor que o esperado.',
+            });
           }
         }
       } catch (checkErr) {
@@ -112,16 +145,7 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // Se o webhook declarou o valor correto e não houve rejeição no payment_check
-    const effectiveAmount = paid_amount || amount;
-    if (effectiveAmount < FIXED_PRODUCT_PRICE_CENTS) {
-      return res.status(400).json({
-        success: false,
-        message: `Valor pago (${effectiveAmount}) inferior ao preço tabelado do produto (${FIXED_PRODUCT_PRICE_CENTS}).`,
-      });
-    }
-
-    // 5. Executar ativação atômica no banco de dados via RPC com SECURITY DEFINER
+    // 6. Executar ativação atômica no banco de dados via RPC com SECURITY DEFINER
     const { data: rpcResult, error: rpcErr } = await supabase.rpc('activate_paid_order', {
       p_external_reference: order_nsu,
       p_provider_payment_id: transaction_nsu || null,
@@ -139,7 +163,7 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // 6. Marcar evento como processado
+    // 7. Marcar evento como processado
     if (eventId) {
       await supabase
         .from('payment_events')
@@ -150,7 +174,7 @@ export default async function handler(req: any, res: any) {
         .eq('id', eventId);
     }
 
-    // 7. Responder 200 OK com o formato oficial esperado pela InfinitePay
+    // 8. Responder 200 OK com o formato oficial esperado pela InfinitePay
     return res.status(200).json({
       success: true,
       message: null,

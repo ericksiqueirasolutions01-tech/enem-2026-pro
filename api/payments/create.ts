@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 export const INFINITEPAY_API_URL = 'https://api.checkout.infinitepay.io';
-export const FIXED_PRODUCT_PRICE_CENTS = 3700; // R$ 37,00 fixo e imutável
+export const FIXED_PRODUCT_PRICE_CENTS = 3700; // R$ 37,00 fixo e imutável no backend
 export const DEFAULT_HANDLE = 'erick-siqueira-bg2';
 
 function getOptionalSupabaseAdmin(): SupabaseClient | null {
@@ -73,7 +73,7 @@ export default async function handler(req: any, res: any) {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
 
     // Obter dados do cliente
-    let userId = authUser?.id || body.userId || `user-${Date.now()}`;
+    let userId = authUser?.id || body.userId;
     let customerName = 'Aluno ENEM 2026 PRO';
     let customerEmail = authUser?.email || body.email || 'aluno@enem2026pro.com';
     let customerPhone: string | undefined = body.phone ? String(body.phone).replace(/\D/g, '') : undefined;
@@ -108,67 +108,154 @@ export default async function handler(req: any, res: any) {
       customerName = body.name;
     }
 
-    // 3. Processar Cupom de Desconto (se fornecido)
+    // 3. Processar Cupom de Desconto STRICT SERVER-SIDE (GATE 8, 11, 12, 14)
+    // NUNCA confia em body.discountCents ou body.finalPriceCents vindos do frontend!
     const rawCoupon = body.couponCode || body.coupon;
-    let finalAmountCents = FIXED_PRODUCT_PRICE_CENTS;
+    let finalAmountCents = FIXED_PRODUCT_PRICE_CENTS; // R$ 37,00 padrão
     let appliedDiscountCents = 0;
     let couponDescription = 'ENEM 2026 PRO — Acesso Completo';
+    let validatedCouponRecord: any = null;
 
-    if (rawCoupon) {
-      const cleanCoupon = String(rawCoupon).trim().toUpperCase();
-      if (typeof body.discountCents === 'number' && body.discountCents > 0) {
-        appliedDiscountCents = Math.min(FIXED_PRODUCT_PRICE_CENTS, Number(body.discountCents));
+    if (rawCoupon && typeof rawCoupon === 'string' && rawCoupon.trim()) {
+      const cleanCoupon = rawCoupon.trim().toUpperCase();
+
+      if (supabase) {
+        // Validação direta no banco de dados
+        const { data: coupon, error: couponErr } = await supabase
+          .from('coupons')
+          .select('*')
+          .eq('code', cleanCoupon)
+          .maybeSingle();
+
+        if (couponErr) {
+          console.error('[Payments] Erro ao consultar cupom no banco:', couponErr);
+          return res.status(500).json({ success: false, message: 'Erro ao validar cupom no servidor.' });
+        }
+
+        if (!coupon) {
+          return res.status(400).json({
+            success: false,
+            error: 'COUPON_NOT_FOUND',
+            message: `O cupom '${cleanCoupon}' não existe ou é inválido.`,
+          });
+        }
+
+        if (!coupon.active) {
+          return res.status(400).json({
+            success: false,
+            error: 'COUPON_INACTIVE',
+            message: 'Este cupom foi desativado.',
+          });
+        }
+
+        const now = new Date();
+        if (coupon.starts_at && new Date(coupon.starts_at) > now) {
+          return res.status(400).json({
+            success: false,
+            error: 'COUPON_NOT_STARTED',
+            message: 'Este cupom ainda não é válido.',
+          });
+        }
+
+        if (coupon.expires_at && new Date(coupon.expires_at) < now) {
+          return res.status(400).json({
+            success: false,
+            error: 'COUPON_EXPIRED',
+            message: 'Este cupom expirou.',
+          });
+        }
+
+        if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
+          return res.status(400).json({
+            success: false,
+            error: 'COUPON_LIMIT_REACHED',
+            message: 'Este cupom atingiu o limite de utilizações.',
+          });
+        }
+
+        // Validação de re-uso por usuário
+        if (userId) {
+          const { data: redemption } = await supabase
+            .from('coupon_redemptions')
+            .select('id')
+            .eq('coupon_id', coupon.id)
+            .eq('user_id', userId)
+            .maybeSingle();
+
+          if (redemption) {
+            return res.status(400).json({
+              success: false,
+              error: 'COUPON_ALREADY_USED',
+              message: 'Você já utilizou este cupom anteriormente.',
+            });
+          }
+        }
+
+        // Cálculo de desconto pelo servidor
+        if (coupon.discount_type === 'PERCENTAGE') {
+          const pct = Math.min(100, Math.max(0, coupon.discount_value));
+          appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * pct) / 100);
+          couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - ${pct}% OFF)`;
+        } else {
+          // FIXED
+          appliedDiscountCents = Math.min(FIXED_PRODUCT_PRICE_CENTS, Math.max(0, coupon.discount_value));
+          couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon})`;
+        }
+
         finalAmountCents = Math.max(0, FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents);
-        couponDescription = finalAmountCents === 0
-          ? `ENEM 2026 PRO — Acesso Gratuito (Cupom: ${cleanCoupon})`
-          : `ENEM 2026 PRO (Cupom: ${cleanCoupon})`;
-      } else if (typeof body.finalPriceCents === 'number' && body.finalPriceCents >= 0 && body.finalPriceCents <= FIXED_PRODUCT_PRICE_CENTS) {
-        finalAmountCents = body.finalPriceCents;
-        appliedDiscountCents = FIXED_PRODUCT_PRICE_CENTS - finalAmountCents;
-        couponDescription = finalAmountCents === 0
-          ? `ENEM 2026 PRO — Acesso Gratuito (Cupom: ${cleanCoupon})`
-          : `ENEM 2026 PRO (Cupom: ${cleanCoupon})`;
-      } else if (body.discountPercent && Number(body.discountPercent) > 0 && Number(body.discountPercent) <= 100) {
-        const pct = Math.min(100, Math.max(0, Number(body.discountPercent)));
-        appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * pct) / 100);
-        finalAmountCents = Math.max(0, FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents);
-        couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - ${pct}% OFF)`;
+        validatedCouponRecord = coupon;
       }
     }
 
-    // Se o cupom conceder 100% de desconto (R$ 0,00), ativa diretamente o aluno
+    const orderNsu = `enem-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+    let orderId = orderNsu;
+
+    // 4. Se o cupom conceder 100% de desconto (R$ 0,00), ativação atômica server-side (GATE 14)
     if (finalAmountCents === 0) {
-      if (supabase && userId) {
-        try {
-          await supabase.from('profiles').update({ status: 'APROVADO', role: 'ALUNO' }).eq('id', userId);
-        } catch (actErr) {
-          console.warn('[Payments] Erro ao ativar perfil no Supabase:', actErr);
-        }
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'AUTH_REQUIRED',
+          message: 'Faça login para resgatar este cupom de 100%.',
+        });
       }
-      return res.status(200).json({
-        success: true,
-        alreadyActive: true,
-        isFreeCoupon: true,
-        finalPriceCents: 0,
-        appliedDiscountCents: FIXED_PRODUCT_PRICE_CENTS,
-        message: 'Parabéns! Sua bolsa de estudos / cupom de 100% foi ativado com sucesso!',
-      });
+
+      if (supabase && validatedCouponRecord) {
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc('activate_free_coupon_order', {
+          p_user_id: userId,
+          p_coupon_code: validatedCouponRecord.code,
+          p_external_reference: orderNsu,
+        });
+
+        if (rpcErr || !rpcRes?.success) {
+          console.error('[Payments] Falha ao ativar pedido com cupom 100%:', rpcErr || rpcRes);
+          return res.status(400).json({
+            success: false,
+            message: rpcRes?.message || 'Falha ao ativar cupom gratuito.',
+          });
+        }
+
+        return res.status(200).json({
+          success: true,
+          alreadyActive: true,
+          isFreeCoupon: true,
+          orderId: rpcRes.order_id,
+          finalPriceCents: 0,
+          appliedDiscountCents: FIXED_PRODUCT_PRICE_CENTS,
+          message: 'Parabéns! Sua bolsa de estudos / cupom de 100% foi ativado com sucesso!',
+        });
+      }
     }
 
     // Regra da adquirente InfinitePay (CloudWalk):
     // A InfinitePay rejeita qualquer transação comercial com valor inferior a R$ 1,00 (100 centavos).
-    // Se o cupom deixar um valor residual abaixo de R$ 1,00 (ex: 98% = R$ 0,74),
-    // ajusta para o piso de 100 centavos (R$ 1,00) para permitir a criação do link Pix/Cartão.
+    // Se o cupom deixar um valor residual abaixo de R$ 1,00 (ex: R$ 0,74), ajusta para o piso de 100 centavos
     if (finalAmountCents > 0 && finalAmountCents < 100) {
       finalAmountCents = 100;
       appliedDiscountCents = FIXED_PRODUCT_PRICE_CENTS - finalAmountCents;
     }
 
-    // 4. Gerar NSU único e fixar valor do pedido
-    const orderNsu = `enem-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-    let orderId = orderNsu;
-
-    // 5. Se Supabase estiver disponível, registrar pedido
+    // 5. Registrar pedido PENDENTE no Supabase com snapshot do cupom (GATE 1, 2, 12)
     if (supabase && userId) {
       try {
         const { data: newOrder, error: orderInsertErr } = await supabase
@@ -176,10 +263,19 @@ export default async function handler(req: any, res: any) {
           .insert({
             user_id: userId,
             provider: 'infinitepay',
-            amount_cents: finalAmountCents, // Base amount_cents: FIXED_PRODUCT_PRICE_CENTS com desconto de cupom validado no servidor
+            amount_cents: finalAmountCents,
             currency: 'BRL',
             status: 'PENDING',
             external_reference: orderNsu,
+            coupon_id: validatedCouponRecord?.id || null,
+            coupon_code_snapshot: validatedCouponRecord?.code || null,
+            original_price_cents: FIXED_PRODUCT_PRICE_CENTS,
+            discount_cents: appliedDiscountCents,
+            metadata: {
+              customer_name: customerName,
+              customer_email: customerEmail,
+              coupon_applied: validatedCouponRecord?.code || null,
+            },
           })
           .select()
           .single();
@@ -216,7 +312,7 @@ export default async function handler(req: any, res: any) {
       ],
     };
 
-    // 6. Requisição server-to-server POST https://api.checkout.infinitepay.io/links
+    // 7. Requisição server-to-server POST https://api.checkout.infinitepay.io/links
     const infiniteResponse = await fetch(`${INFINITEPAY_API_URL}/links`, {
       method: 'POST',
       headers: {
@@ -253,39 +349,40 @@ export default async function handler(req: any, res: any) {
       return res.status(502).json({
         success: false,
         error: 'INVALID_GATEWAY_RESPONSE',
-        message: 'A resposta da InfinitePay não continha a URL de redirecionamento do checkout.',
+        message: 'Resposta da InfinitePay não continha a URL de checkout.',
       });
     }
 
-    // Atualizar registro no banco se existir
-    if (supabase && orderId !== orderNsu) {
+    // Atualizar order com provider_slug e checkout_url
+    if (supabase && orderId && orderId !== orderNsu) {
       try {
         await supabase
           .from('orders')
           .update({
             checkout_url: checkoutUrl,
             provider_slug: ipData.slug || null,
-            updated_at: new Date().toISOString(),
           })
           .eq('id', orderId);
-      } catch (updateErr) {
-        console.warn('[Payments] Erro ao atualizar checkout_url no banco:', updateErr);
+      } catch (updErr) {
+        console.warn('[Payments] Erro ao atualizar checkout_url no pedido:', updErr);
       }
     }
 
     return res.status(200).json({
       success: true,
-      orderId,
-      externalReference: orderNsu,
       checkoutUrl,
-      status: 'PENDING',
+      orderId,
+      orderNsu,
+      slug: ipData.slug || null,
+      finalPriceCents: finalAmountCents,
+      appliedDiscountCents,
     });
-  } catch (error: any) {
-    console.error('[Payments] Erro inesperado em create:', error);
+  } catch (err: any) {
+    console.error('[Payments] Erro fatal no processamento do checkout:', err);
     return res.status(500).json({
       success: false,
       error: 'INTERNAL_SERVER_ERROR',
-      message: error?.message || 'Erro interno ao processar pagamento.',
+      message: err?.message || 'Erro interno ao processar cobrança.',
     });
   }
 }

@@ -41,15 +41,18 @@ try {
   const createCode = fs.readFileSync(createPath, 'utf8');
   const sharedCode = fs.readFileSync(sharedPath, 'utf8');
 
-  // Verify fixed 3700 cents
+  // Verify fixed 3700 cents base price and server-side calculation (GATE 8)
   const hasFixedPrice = (sharedCode.includes('FIXED_PRODUCT_PRICE_CENTS = 3700') || createCode.includes('3700')) &&
-    createCode.includes('amount_cents: FIXED_PRODUCT_PRICE_CENTS');
-  const acceptsClientPrice = /amount_cents:\s*req\.body/i.test(createCode) || /price:\s*req\.body/i.test(createCode);
+    (createCode.includes('amount_cents: FIXED_PRODUCT_PRICE_CENTS') || createCode.includes('amount_cents: finalAmountCents')) &&
+    createCode.includes('finalAmountCents = FIXED_PRODUCT_PRICE_CENTS');
+  const acceptsClientPrice = /amount_cents:\s*req\.body/i.test(createCode) ||
+    /price:\s*req\.body/i.test(createCode) ||
+    /finalAmountCents\s*=\s*(?:req\.body|body)\.finalPriceCents/i.test(createCode);
 
   if (hasFixedPrice && !acceptsClientPrice) {
-    logPass('GATE 4/5: Preço de R$ 37,00 (3700 centavos) travado no servidor contra adulteração.');
+    logPass('GATE 4/5/8: Preço base de R$ 37,00 (3700 centavos) e cálculo de cupom travados no servidor.');
   } else {
-    logFail('GATE 4/5: Falha na trava de preço no servidor em api/payments/create.ts');
+    logFail('GATE 4/5/8: Falha na trava de preço no servidor em api/payments/create.ts');
   }
 
   // Verify handle

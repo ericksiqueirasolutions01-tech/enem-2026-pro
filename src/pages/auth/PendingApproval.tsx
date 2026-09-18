@@ -41,18 +41,13 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
   const [appliedCoupon, setAppliedCoupon] = useState<CouponValidationResult | null>(null);
   const [couponFeedback, setCouponFeedback] = useState<string | null>(null);
   const [showCouponInput, setShowCouponInput] = useState(true);
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
 
   useEffect(() => {
     const user = db.getCurrentUser();
-    if (user) {
-      const emailLower = user.email.toLowerCase();
-      if (emailLower === 'ericksiqueiraaa@gmail.com' || emailLower === 'ericksiqueiraa@gmail.com') {
-        user.status = 'APROVADO';
-        db.setCurrentUser(user, true);
-        db.approveUser(user.id);
-        onNavigate('dashboard');
-        return;
-      }
+    if (user && user.status === 'APROVADO') {
+      onNavigate('dashboard');
+      return;
     }
 
     return db.subscribe(() => {
@@ -64,7 +59,7 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
     });
   }, [onNavigate]);
 
-  const handleApplyCoupon = (e?: React.FormEvent, directCode?: string) => {
+  const handleApplyCoupon = async (e?: React.FormEvent, directCode?: string) => {
     if (e) e.preventDefault();
     const codeToValidate = (directCode || couponCodeInput || '').trim();
     if (!codeToValidate) {
@@ -72,15 +67,24 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
       return;
     }
 
-    const result = db.validateCoupon(codeToValidate, 3700);
-    if (result.valid) {
-      setAppliedCoupon(result);
-      setCouponCodeInput(result.coupon?.code || codeToValidate.toUpperCase());
-      setCouponFeedback(null);
-      setCheckoutError(null);
-    } else {
+    setIsValidatingCoupon(true);
+    setCouponFeedback(null);
+    try {
+      const result = await paymentRepository.validateCoupon(codeToValidate);
+      if (result.valid) {
+        setAppliedCoupon(result);
+        setCouponCodeInput(result.coupon?.code || codeToValidate.toUpperCase());
+        setCouponFeedback(null);
+        setCheckoutError(null);
+      } else {
+        setAppliedCoupon(null);
+        setCouponFeedback(result.error || 'Cupom inválido.');
+      }
+    } catch {
       setAppliedCoupon(null);
-      setCouponFeedback(result.error || 'Cupom inválido.');
+      setCouponFeedback('Falha de comunicação ao validar cupom.');
+    } finally {
+      setIsValidatingCoupon(false);
     }
   };
 
@@ -135,7 +139,7 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
     try {
       const lastOrderId = localStorage.getItem('enem2026_last_order_id') || undefined;
 
-      // 1. Tenta verificar o status ativo do pagamento via API
+      // 1. Tenta verificar o status ativo do pagamento via API oficial do backend
       let paymentConfirmed = false;
       try {
         const payStatus = await paymentRepository.checkPaymentStatus(lastOrderId);
@@ -146,7 +150,7 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
         console.warn('[PendingApproval] Erro ao consultar status do pagamento:', payErr);
       }
 
-      // 2. Consulta a sessão atualizada do usuário
+      // 2. Consulta a sessão atualizada do usuário no backend
       const freshUser = await authRepository.getCurrentSessionUser();
       setIsChecking(false);
 
@@ -155,14 +159,11 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
         return;
       }
 
-      const emailLower = (freshUser.email || '').toLowerCase();
-      const isOwner = emailLower === 'ericksiqueiraaa@gmail.com' || emailLower === 'ericksiqueiraa@gmail.com';
-      const hasPaidCheckout = Boolean(lastOrderId && lastOrderId.startsWith('enem-'));
-
-      if (paymentConfirmed || freshUser.status === 'APROVADO' || isOwner || hasPaidCheckout) {
+      // Fail-closed absoluto: NUNCA usar flags locais ou localStorage para conceder aprovação!
+      // Apenas liberar se o backend confirmou o pagamento ou se o perfil no Supabase está APROVADO
+      if (paymentConfirmed || freshUser.status === 'APROVADO') {
         freshUser.status = 'APROVADO';
         db.setCurrentUser(freshUser, true);
-        db.approveUser(freshUser.id);
         setCurrentUser(freshUser);
         setCheckedMessage('Parabéns! Seu pagamento foi confirmado e seu acesso está liberado!');
         setTimeout(() => onNavigate('dashboard'), 800);
@@ -175,7 +176,7 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
       if (freshUser.status === 'REPROVADO') {
         setCheckedMessage('Seu cadastro não foi aprovado pela administração.');
       } else {
-        setCheckedMessage('Pagamento ou aprovação ainda não identificados. Se já pagou, aguarde alguns instantes ou atualize a página.');
+        setCheckedMessage('Pagamento ainda não confirmado. Se você já efetuou o pagamento, aguarde alguns instantes para a compensação bancária e clique novamente em Verificar Status.');
       }
     } catch {
       setIsChecking(false);
@@ -319,9 +320,10 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
                       />
                       <button
                         type="submit"
-                        className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-xl cursor-pointer transition-colors"
+                        disabled={isValidatingCoupon}
+                        className="px-4 py-2 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer transition-colors"
                       >
-                        Aplicar
+                        {isValidatingCoupon ? 'Validando...' : 'Aplicar'}
                       </button>
                     </div>
                     {couponFeedback && (

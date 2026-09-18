@@ -1,0 +1,142 @@
+import { getOptionalSupabaseAdmin, getAuthenticatedUser, FIXED_PRODUCT_PRICE_CENTS } from '../payments/_shared';
+
+export default async function handler(req: any, res: any) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ success: false, message: 'Método não permitido.' });
+  }
+
+  try {
+    const rawCode = req.body?.code || req.body?.couponCode || req.body?.coupon;
+    if (!rawCode || typeof rawCode !== 'string' || !rawCode.trim()) {
+      return res.status(400).json({
+        valid: false,
+        error: 'COUPON_NOT_FOUND',
+        message: 'Informe o código do cupom.',
+      });
+    }
+
+    const cleanCode = rawCode.trim().toUpperCase();
+    const supabase = getOptionalSupabaseAdmin();
+
+    // Se Supabase não estiver configurado (dev offline), rejeita ou valida fallback estrito
+    if (!supabase) {
+      return res.status(200).json({
+        valid: false,
+        error: 'COUPON_NOT_FOUND',
+        message: 'Cupom inexistente ou inválido.',
+      });
+    }
+
+    // 1. Buscar cupom no banco de dados
+    const { data: coupon, error: fetchErr } = await supabase
+      .from('coupons')
+      .select('*')
+      .eq('code', cleanCode)
+      .maybeSingle();
+
+    if (fetchErr) {
+      console.error('[Coupons] Erro ao consultar cupom no banco:', fetchErr);
+      return res.status(500).json({ valid: false, message: 'Erro ao validar cupom.' });
+    }
+
+    if (!coupon) {
+      return res.status(200).json({
+        valid: false,
+        error: 'COUPON_NOT_FOUND',
+        message: 'Cupom inexistente ou inválido.',
+      });
+    }
+
+    // 2. Validações de Status e Regras de Negócio
+    if (!coupon.active) {
+      return res.status(200).json({
+        valid: false,
+        error: 'COUPON_INACTIVE',
+        message: 'Este cupom foi desativado.',
+      });
+    }
+
+    const now = new Date();
+
+    if (coupon.starts_at && new Date(coupon.starts_at) > now) {
+      return res.status(200).json({
+        valid: false,
+        error: 'COUPON_NOT_STARTED',
+        message: 'Este cupom ainda não é válido.',
+      });
+    }
+
+    if (coupon.expires_at && new Date(coupon.expires_at) < now) {
+      return res.status(200).json({
+        valid: false,
+        error: 'COUPON_EXPIRED',
+        message: 'Este cupom está expirado.',
+      });
+    }
+
+    if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
+      return res.status(200).json({
+        valid: false,
+        error: 'COUPON_LIMIT_REACHED',
+        message: 'Este cupom atingiu o limite máximo de utilizações.',
+      });
+    }
+
+    // 3. Validação por Usuário Autenticado (se token fornecido)
+    const user = await getAuthenticatedUser(req);
+    if (user) {
+      const { data: redemption } = await supabase
+        .from('coupon_redemptions')
+        .select('id')
+        .eq('coupon_id', coupon.id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (redemption) {
+        return res.status(200).json({
+          valid: false,
+          error: 'COUPON_ALREADY_USED',
+          message: 'Você já utilizou este cupom em sua conta.',
+        });
+      }
+    }
+
+    // 4. Cálculo Rigoroso Server-Side do Desconto
+    const basePriceCents = FIXED_PRODUCT_PRICE_CENTS; // R$ 37,00
+    let discountCents = 0;
+
+    if (coupon.discount_type === 'PERCENTAGE') {
+      const pct = Math.min(100, Math.max(0, coupon.discount_value));
+      discountCents = Math.round((basePriceCents * pct) / 100);
+    } else {
+      // FIXED (em centavos)
+      discountCents = Math.min(basePriceCents, Math.max(0, coupon.discount_value));
+    }
+
+    const amountDueCents = Math.max(0, basePriceCents - discountCents);
+
+    return res.status(200).json({
+      valid: true,
+      coupon: {
+        id: coupon.id,
+        code: coupon.code,
+        discountType: coupon.discount_type,
+        discountValue: coupon.discount_value,
+        active: coupon.active,
+        expiresAt: coupon.expires_at,
+      },
+      productPriceCents: basePriceCents,
+      discountCents,
+      amountDueCents,
+      isFree: amountDueCents === 0,
+      message: amountDueCents === 0
+        ? 'Cupom de 100% de desconto! Acesso gratuito liberado.'
+        : `Cupom aplicado! Desconto de R$ ${(discountCents / 100).toFixed(2).replace('.', ',')}`,
+    });
+  } catch (err: any) {
+    console.error('[Coupons] Erro inesperado na validação:', err);
+    return res.status(500).json({ valid: false, message: err?.message || 'Erro interno na validação do cupom.' });
+  }
+}
+

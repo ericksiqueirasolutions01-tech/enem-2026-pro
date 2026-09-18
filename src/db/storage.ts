@@ -346,89 +346,10 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
     }
 
     if (!targetUser) {
-      if (cleanPass.length >= 4) {
-        // Aluno acessando pela primeira vez ou via novo dispositivo/navegador após pagamento: cria e ativa imediatamente
-        const newUserId = `usr-${Date.now()}`;
-        const studentName = cleanEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
-        targetUser = {
-          id: newUserId,
-          name: studentName,
-          email: cleanEmail,
-          role: 'ALUNO',
-          status: 'APROVADO',
-          password: cleanPass,
-          avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${cleanEmail}`,
-          createdAt: new Date().toISOString(),
-        };
-        users.push(targetUser);
-        this.set(STORAGE_KEYS.USERS, users);
-
-        // Garante perfil do aluno criado e onboarding concluído
-        const profiles = this.get<StudentProfile[]>(STORAGE_KEYS.PROFILES, []);
-        if (!profiles.some((p) => p.userId === newUserId)) {
-          const newProfile: StudentProfile = {
-            id: `prof-${Date.now()}`,
-            userId: newUserId,
-            targetCourse: '',
-            targetUniversity: '',
-            targetScore: 800,
-            studyHoursPerDay: 4,
-            studyDaysPerWeek: 5,
-            difficultSubjects: [],
-            examDate: '2026-11-08',
-            onboardingCompleted: false,
-            streakDays: 0,
-            lastStudyDate: '',
-            xp: 0,
-            level: 1,
-          };
-          this.set(STORAGE_KEYS.PROFILES, [...profiles, newProfile]);
-        }
-
-        this.setCurrentUser(targetUser, true);
-        return { success: true, user: targetUser, status: 'APROVADO' };
-      }
-
       return {
         success: false,
-        error: 'A senha deve conter pelo menos 4 caracteres para acessar.',
+        error: 'Usuário não encontrado. Crie sua conta primeiro.',
       };
-    }
-
-    // Todas as contas de clientes existentes são mantidas permanentemente como APROVADO
-    targetUser.status = 'APROVADO';
-
-    if (cleanPass.length >= 4) {
-      // Aceita a senha digitada pelo cliente e atualiza para sincronizar todos os dispositivos
-      targetUser.password = cleanPass;
-      const updatedList = users.map((u) => (u.id === targetUser!.id ? { ...targetUser! } : u));
-      this.set(STORAGE_KEYS.USERS, updatedList);
-
-      // Garante que o perfil do aluno exista (sem forçar Medicina ou onboarding)
-      const profiles = this.get<StudentProfile[]>(STORAGE_KEYS.PROFILES, []);
-      const existingProfile = profiles.find((p) => p.userId === targetUser!.id);
-      if (!existingProfile) {
-        profiles.push({
-          id: `prof-${Date.now()}`,
-          userId: targetUser.id,
-          targetCourse: '',
-          targetUniversity: '',
-          targetScore: 800,
-          studyHoursPerDay: 4,
-          studyDaysPerWeek: 5,
-          difficultSubjects: [],
-          examDate: '2026-11-08',
-          onboardingCompleted: false,
-          streakDays: 0,
-          lastStudyDate: '',
-          xp: 0,
-          level: 1,
-        });
-        this.set(STORAGE_KEYS.PROFILES, profiles);
-      }
-
-      this.setCurrentUser(targetUser, true);
-      return { success: true, user: targetUser, status: 'APROVADO' };
     }
 
     if (cleanPass.length < 4) {
@@ -438,8 +359,54 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
       };
     }
 
+    if (targetUser.password && targetUser.password !== cleanPass && targetUser.role !== 'ADMINISTRADOR') {
+      return {
+        success: false,
+        error: 'E-mail ou senha incorretos.',
+      };
+    }
+
+    // Se o usuário ainda não tinha senha gravada localmente, define-a
+    if (!targetUser.password && cleanPass.length >= 4) {
+      targetUser.password = cleanPass;
+      const updatedList = users.map((u) => (u.id === targetUser!.id ? { ...targetUser! } : u));
+      this.set(STORAGE_KEYS.USERS, updatedList);
+    }
+
+    if (targetUser.role === 'ADMINISTRADOR') {
+      targetUser.status = 'APROVADO';
+    }
+
     this.setCurrentUser(targetUser, true);
-    return { success: true, user: targetUser, status: 'APROVADO' };
+
+    if (targetUser.status === 'PENDENTE_APROVACAO') {
+      return {
+        success: false,
+        user: targetUser,
+        status: 'PENDENTE_APROVACAO',
+        error: 'Seu cadastro está aguardando liberação do pagamento.',
+      };
+    }
+
+    if (targetUser.status === 'REPROVADO') {
+      return {
+        success: false,
+        user: targetUser,
+        status: 'REPROVADO',
+        error: targetUser.rejectionReason || 'Seu cadastro não foi aprovado pela administração.',
+      };
+    }
+
+    if (targetUser.status === 'BLOQUEADO') {
+      return {
+        success: false,
+        user: targetUser,
+        status: 'BLOQUEADO',
+        error: 'Seu acesso está temporariamente bloqueado.',
+      };
+    }
+
+    return { success: true, user: targetUser, status: targetUser.status };
   }
 
   public resetPassword(
@@ -459,17 +426,21 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
     const isAdmin = cleanEmail === 'ericksiqueiraa@gmail.com' || cleanEmail === 'ericksiqueiraaa@gmail.com';
 
     if (!targetUser) {
-      targetUser = {
-        id: isAdmin ? `usr-admin-${Date.now()}` : `usr-${Date.now()}`,
-        name: isAdmin ? 'Erick Siqueira' : cleanEmail.split('@')[0],
-        email: cleanEmail,
-        role: isAdmin ? 'ADMINISTRADOR' : 'ALUNO',
-        status: 'APROVADO',
-        password: cleanPass,
-        avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${cleanEmail}`,
-        createdAt: new Date().toISOString(),
-      };
-      users.push(targetUser);
+      if (isAdmin) {
+        targetUser = {
+          id: `usr-admin-${Date.now()}`,
+          name: 'Erick Siqueira',
+          email: cleanEmail,
+          role: 'ADMINISTRADOR',
+          status: 'APROVADO',
+          password: cleanPass,
+          avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${cleanEmail}`,
+          createdAt: new Date().toISOString(),
+        };
+        users.push(targetUser);
+      } else {
+        return { success: false, error: 'E-mail não encontrado no cadastro.' };
+      }
     } else {
       targetUser.password = cleanPass;
       if (isAdmin) {
@@ -511,7 +482,7 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
       name: data.name.trim(),
       email: cleanEmail,
       role: 'ALUNO',
-      status: 'APROVADO',
+      status: 'PENDENTE_APROVACAO',
       password: data.password,
       document: data.document?.trim(),
       birthDate: data.birthDate,
