@@ -1613,7 +1613,7 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
     if (!coupon) {
       return {
         valid: false,
-        error: 'Digite um cupom válido (ex: BOLSA100, ENEM20 ou PROMO50).',
+        error: 'Cupom inválido ou não encontrado.',
         originalPriceCents,
         discountCents: 0,
         finalPriceCents: originalPriceCents,
