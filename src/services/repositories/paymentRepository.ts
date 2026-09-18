@@ -264,6 +264,13 @@ export const paymentRepository = {
       if (contentType.includes('application/json')) {
         const data = await res.json();
         if (data.success && (data.checkoutUrl || data.alreadyActive)) {
+          if (typeof window !== 'undefined' && (data.orderId || data.orderNsu)) {
+            try {
+              localStorage.setItem('enem2026_last_order_id', data.orderId || data.orderNsu);
+            } catch {
+              // ignore
+            }
+          }
           return data;
         }
         if (!data.success && data.message) {
@@ -338,6 +345,13 @@ export const paymentRepository = {
           (ipData.slug ? `https://pay.infinitepay.io/${ipData.slug}` : null);
 
         if (checkoutUrl) {
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('enem2026_last_order_id', orderNsu);
+            } catch {
+              // ignore
+            }
+          }
           return {
             success: true,
             checkoutUrl,
@@ -370,7 +384,16 @@ export const paymentRepository = {
    * Consulta o status de um pedido junto ao endpoint oficial /api/payments/status.
    * Em caso de falha de conexão, opera estritamente em modo FAIL-CLOSED (não libera acesso).
    */
-  async checkPaymentStatus(orderId?: string): Promise<PaymentStatusResponse> {
+  async checkPaymentStatus(
+    params?:
+      | string
+      | {
+          orderId?: string;
+          orderNsu?: string;
+          transactionNsu?: string;
+          slug?: string;
+        }
+  ): Promise<PaymentStatusResponse> {
     const token = await getAuthToken();
 
     const headers: Record<string, string> = {};
@@ -378,7 +401,33 @@ export const paymentRepository = {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const url = orderId ? `/api/payments/status?order_id=${encodeURIComponent(orderId)}` : '/api/payments/status';
+    let orderId: string | undefined;
+    let transactionNsu: string | undefined;
+    let slug: string | undefined;
+
+    if (typeof params === 'string') {
+      orderId = params.trim() || undefined;
+    } else if (params && typeof params === 'object') {
+      orderId = params.orderId || params.orderNsu;
+      transactionNsu = params.transactionNsu;
+      slug = params.slug;
+    }
+
+    if (!orderId && typeof window !== 'undefined') {
+      try {
+        orderId = localStorage.getItem('enem2026_last_order_id') || undefined;
+      } catch {
+        // ignore
+      }
+    }
+
+    const query = new URLSearchParams();
+    if (orderId) query.set('order_id', orderId);
+    if (transactionNsu) query.set('transaction_nsu', transactionNsu);
+    if (slug) query.set('slug', slug);
+
+    const qs = query.toString();
+    const url = qs ? `/api/payments/status?${qs}` : '/api/payments/status';
 
     try {
       const res = await fetch(url, {

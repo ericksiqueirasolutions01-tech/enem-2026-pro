@@ -154,27 +154,29 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
       const freshUser = await authRepository.getCurrentSessionUser();
       setIsChecking(false);
 
-      if (!freshUser) {
+      const userToApprove = freshUser || currentUser || db.getCurrentUser();
+
+      if (!userToApprove) {
         onNavigate('login');
         return;
       }
 
       // Validação rigorosa de entitlement server-side
-      const entitlement = await paymentRepository.verifyAccessEntitlement(freshUser);
+      const entitlement = await paymentRepository.verifyAccessEntitlement(userToApprove);
 
       if (paymentConfirmed || entitlement.isEntitled) {
-        freshUser.status = 'APROVADO';
-        db.setCurrentUser(freshUser, true);
-        setCurrentUser(freshUser);
+        userToApprove.status = 'APROVADO';
+        db.setCurrentUser(userToApprove, true);
+        setCurrentUser(userToApprove);
         setCheckedMessage('Parabéns! Seu pagamento foi confirmado e seu acesso está liberado!');
         setTimeout(() => onNavigate('dashboard'), 800);
         return;
       }
 
-      db.setCurrentUser(freshUser, true);
-      setCurrentUser(freshUser);
+      db.setCurrentUser(userToApprove, true);
+      setCurrentUser(userToApprove);
 
-      if (freshUser.status === 'REPROVADO') {
+      if (userToApprove.status === 'REPROVADO') {
         setCheckedMessage('Seu cadastro não foi aprovado pela administração.');
       } else {
         setCheckedMessage('Pagamento ainda não confirmado. Se você já efetuou o pagamento, aguarde alguns instantes para a compensação bancária e clique novamente em Verificar Status.');

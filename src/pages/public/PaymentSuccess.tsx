@@ -10,7 +10,17 @@ export const PaymentSuccess: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const orderId = searchParams.get('order_id') || searchParams.get('orderId') || '';
+  const rawOrderId =
+    searchParams.get('order_id') ||
+    searchParams.get('orderId') ||
+    searchParams.get('order_nsu') ||
+    '';
+  const orderId =
+    rawOrderId ||
+    (typeof window !== 'undefined' ? localStorage.getItem('enem2026_last_order_id') || '' : '');
+  const transactionNsu = searchParams.get('transaction_nsu') || searchParams.get('transactionId') || '';
+  const slug = searchParams.get('slug') || searchParams.get('invoice_slug') || '';
+
   const [isVerifying, setIsVerifying] = useState(true);
   const [isApproved, setIsApproved] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -44,17 +54,24 @@ export const PaymentSuccess: React.FC = () => {
           setCurrentUser(freshUser);
         }
 
+        const targetUser = freshUser || currentUser || db.getCurrentUser();
+
         // Consultar status do pedido diretamente no backend
-        const statusRes = await paymentRepository.checkPaymentStatus(orderId || undefined);
-        const entitlement = await paymentRepository.verifyAccessEntitlement(freshUser);
+        const statusRes = await paymentRepository.checkPaymentStatus({
+          orderId: orderId || undefined,
+          transactionNsu: transactionNsu || undefined,
+          slug: slug || undefined,
+        });
+        const entitlement = await paymentRepository.verifyAccessEntitlement(targetUser);
 
         if ((statusRes.isPaid && statusRes.status === 'PAID') || entitlement.isEntitled) {
           setIsApproved(true);
           setIsVerifying(false);
           triggerConfetti();
-          if (freshUser) {
-            freshUser.status = 'APROVADO';
-            db.setCurrentUser(freshUser, true);
+          if (targetUser) {
+            targetUser.status = 'APROVADO';
+            db.setCurrentUser(targetUser, true);
+            setCurrentUser(targetUser);
           }
           return;
         }
