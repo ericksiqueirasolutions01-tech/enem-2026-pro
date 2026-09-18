@@ -45,18 +45,18 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
 
   useEffect(() => {
     const user = db.getCurrentUser();
-    if (user && user.status === 'APROVADO') {
-      onNavigate('dashboard');
+    if (user && user.role === 'ADMINISTRADOR' && user.status === 'APROVADO') {
+      onNavigate('admin');
       return;
     }
 
-    return db.subscribe(() => {
-      const u = db.getCurrentUser();
-      setCurrentUser(u);
-      if (u && u.status === 'APROVADO') {
-        onNavigate('dashboard');
-      }
-    });
+    if (user) {
+      paymentRepository.verifyAccessEntitlement(user).then((res) => {
+        if (res.isEntitled) {
+          onNavigate('dashboard');
+        }
+      });
+    }
   }, [onNavigate]);
 
   const handleApplyCoupon = async (e?: React.FormEvent, directCode?: string) => {
@@ -143,7 +143,7 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
       let paymentConfirmed = false;
       try {
         const payStatus = await paymentRepository.checkPaymentStatus(lastOrderId);
-        if (payStatus.isPaid || payStatus.userStatus === 'APROVADO') {
+        if (payStatus.isPaid && payStatus.status === 'PAID') {
           paymentConfirmed = true;
         }
       } catch (payErr) {
@@ -159,9 +159,10 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
         return;
       }
 
-      // Fail-closed absoluto: NUNCA usar flags locais ou localStorage para conceder aprovação!
-      // Apenas liberar se o backend confirmou o pagamento ou se o perfil no Supabase está APROVADO
-      if (paymentConfirmed || freshUser.status === 'APROVADO') {
+      // Validação rigorosa de entitlement server-side
+      const entitlement = await paymentRepository.verifyAccessEntitlement(freshUser);
+
+      if (paymentConfirmed || entitlement.isEntitled) {
         freshUser.status = 'APROVADO';
         db.setCurrentUser(freshUser, true);
         setCurrentUser(freshUser);

@@ -59,14 +59,15 @@ export default async function handler(req: any, res: any) {
       order = data;
     }
 
-    isPaid = order?.status === 'PAID' || userStatus === 'APROVADO';
+    const isAdmin = user && (user.email === 'ericksiqueiraa@gmail.com' || user.email === 'ericksiqueiraaa@gmail.com');
+    isPaid = order?.status === 'PAID' || (Boolean(isAdmin) && userStatus === 'APROVADO');
 
     return res.status(200).json({
       success: true,
       orderId: order?.id || orderId,
       status: order?.status || (isPaid ? 'PAID' : 'PENDING'),
       isPaid,
-      userStatus: isPaid ? 'APROVADO' : userStatus,
+      userStatus: isPaid ? (isAdmin ? 'APROVADO' : 'APROVADO') : 'PENDENTE_APROVACAO',
       paidAt: order?.paid_at,
       receiptUrl: order?.receipt_url,
       captureMethod: order?.capture_method,

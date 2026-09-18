@@ -41,19 +41,14 @@ export const PaymentSuccess: React.FC = () => {
       try {
         freshUser = await authRepository.getCurrentSessionUser();
         if (freshUser) {
-          db.setCurrentUser(freshUser, true);
           setCurrentUser(freshUser);
-          if (freshUser.status === 'APROVADO') {
-            setIsApproved(true);
-            setIsVerifying(false);
-            triggerConfetti();
-            return;
-          }
         }
 
         // Consultar status do pedido diretamente no backend
         const statusRes = await paymentRepository.checkPaymentStatus(orderId || undefined);
-        if (statusRes.isPaid || statusRes.userStatus === 'APROVADO') {
+        const entitlement = await paymentRepository.verifyAccessEntitlement(freshUser);
+
+        if ((statusRes.isPaid && statusRes.status === 'PAID') || entitlement.isEntitled) {
           setIsApproved(true);
           setIsVerifying(false);
           triggerConfetti();

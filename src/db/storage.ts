@@ -123,29 +123,25 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
     SEED_USERS.forEach((s) => {
       const emailLower = s.user.email.toLowerCase();
       const isAdmin = emailLower === 'ericksiqueiraa@gmail.com' || emailLower === 'ericksiqueiraaa@gmail.com';
-      if (!userMap.has(emailLower)) {
-        userMap.set(emailLower, {
-          ...s.user,
-          status: 'APROVADO',
-          password: isAdmin ? ADMIN_INITIAL_KEY : s.user.password,
-        });
-      } else {
-        const current = userMap.get(emailLower)!;
-        userMap.set(emailLower, {
-          ...current,
-          status: 'APROVADO',
-          role: isAdmin ? 'ADMINISTRADOR' : current.role,
-          password: isAdmin ? ADMIN_INITIAL_KEY : current.password,
-        });
+      if (isAdmin) {
+        if (!userMap.has(emailLower)) {
+          userMap.set(emailLower, {
+            ...s.user,
+            role: 'ADMINISTRADOR',
+            status: 'APROVADO',
+            password: ADMIN_INITIAL_KEY,
+          });
+        } else {
+          const current = userMap.get(emailLower)!;
+          userMap.set(emailLower, {
+            ...current,
+            status: 'APROVADO',
+            role: 'ADMINISTRADOR',
+            password: ADMIN_INITIAL_KEY,
+          });
+        }
       }
     });
-
-    // Garante que todas as contas de clientes existentes no armazenamento sejam ativadas como APROVADO
-    for (const [email, u] of userMap.entries()) {
-      if (u.status !== 'APROVADO') {
-        userMap.set(email, { ...u, status: 'APROVADO' });
-      }
-    }
 
     this.set(STORAGE_KEYS.USERS, Array.from(userMap.values()));
 

@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { db } from '../../db/storage';
 import {
+  User,
   CreateCheckoutResponse,
   PaymentStatusResponse,
   Order,
@@ -320,15 +321,64 @@ export const paymentRepository = {
     }
 
     // Fail-Closed: Sem confirmação comprovada pelo backend, o status permanece PENDING e isPaid false
-    const currentUser = db.getCurrentUser();
     return {
       success: false,
       orderId: orderId || '',
       status: 'PENDING' as OrderStatus,
       isPaid: false,
-      userStatus: currentUser?.status === 'APROVADO' ? 'APROVADO' : 'PENDENTE_APROVACAO',
+      userStatus: 'PENDENTE_APROVACAO',
       message: 'Não foi possível confirmar o pagamento junto ao servidor.',
     };
+  },
+
+  /**
+   * GATE 1 & GATE 2: Matriz de Autorização Única (Fail-Closed).
+   * canAccessPremium = authenticated AND (isAdmin OR (verified server-side PAID order))
+   * FAIL-CLOSED: erro de rede = negado, status pendente = negado, sem pedido pago = negado.
+   */
+  async verifyAccessEntitlement(user: User | null): Promise<{ isEntitled: boolean; reason?: string }> {
+    if (!user) {
+      return { isEntitled: false, reason: 'NOT_AUTHENTICATED' };
+    }
+
+    const emailLower = (user.email || '').trim().toLowerCase();
+    const isAdminOfficial =
+      (emailLower === 'ericksiqueiraa@gmail.com' || emailLower === 'ericksiqueiraaa@gmail.com') &&
+      user.role === 'ADMINISTRADOR';
+
+    if (isAdminOfficial) {
+      return { isEntitled: true };
+    }
+
+    // Para qualquer aluno: exige pedido com status PAID verificado no backend
+    try {
+      const statusRes = await this.checkPaymentStatus();
+      if (statusRes && statusRes.isPaid && statusRes.status === 'PAID') {
+        return { isEntitled: true };
+      }
+    } catch {
+      // Fail closed
+    }
+
+    // Se Supabase estiver conectado no cliente, consulta direta na tabela orders por pedido PAID
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: paidOrders, error } = await supabase
+          .from('orders')
+          .select('id, status, amount_cents')
+          .eq('user_id', user.id)
+          .eq('status', 'PAID')
+          .limit(1);
+
+        if (!error && paidOrders && paidOrders.length > 0) {
+          return { isEntitled: true };
+        }
+      } catch {
+        // Fail closed
+      }
+    }
+
+    return { isEntitled: false, reason: 'NO_CONFIRMED_PAYMENT' };
   },
 
   /**

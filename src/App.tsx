@@ -273,12 +273,13 @@ export function App() {
     setCurrentUser(user);
     if (!user) {
       navigate('/login');
+    } else if (user.role === 'ADMINISTRADOR' && user.status === 'APROVADO') {
+      navigate('/admin');
     } else if (user.status === 'PENDENTE_APROVACAO' || user.status === 'REPROVADO') {
       navigate('/aguardando-aprovacao');
-    } else if (user.role === 'ADMINISTRADOR') {
-      navigate('/admin');
     } else {
-      navigate('/app');
+      // Aluno: destino padrão até validação de pagamento é /aguardando-aprovacao
+      navigate('/aguardando-aprovacao');
     }
   };
 
@@ -295,8 +296,8 @@ export function App() {
           <Route
             path="/login"
             element={
-              currentUser && currentUser.status === 'APROVADO' ? (
-                <Navigate to={currentUser.role === 'ADMINISTRADOR' ? '/admin' : '/app'} replace />
+              currentUser && currentUser.role === 'ADMINISTRADOR' && currentUser.status === 'APROVADO' ? (
+                <Navigate to="/admin" replace />
               ) : (
                 <Login onNavigate={handleNavigate} onLoginSuccess={handleLoginSuccess} />
               )
@@ -305,8 +306,8 @@ export function App() {
           <Route
             path="/cadastro"
             element={
-              currentUser && currentUser.status === 'APROVADO' ? (
-                <Navigate to="/app" replace />
+              currentUser && currentUser.role === 'ADMINISTRADOR' && currentUser.status === 'APROVADO' ? (
+                <Navigate to="/admin" replace />
               ) : (
                 <Register onNavigate={handleNavigate} onRegisterSuccess={handleLoginSuccess} />
               )
@@ -329,13 +330,13 @@ export function App() {
             element={<PaymentPending />}
           />
 
-          {/* Onboarding do Aluno */}
+          {/* Onboarding do Aluno (Exige pagamento confirmado via ApprovedOnlyRoute) */}
           <Route
             path="/onboarding"
             element={
-              <ProtectedRoute currentUser={currentUser}>
+              <ApprovedOnlyRoute currentUser={currentUser} profile={profile}>
                 <Onboarding currentUser={currentUser} onComplete={() => handleNavigate('dashboard')} />
-              </ProtectedRoute>
+              </ApprovedOnlyRoute>
             }
           />
 
