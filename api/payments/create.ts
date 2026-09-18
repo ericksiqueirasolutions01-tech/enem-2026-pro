@@ -48,11 +48,14 @@ async function getAuthenticatedUser(req: any) {
 function getAppBaseUrl(req: any): string {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
 
-  const host = req?.headers?.['x-forwarded-host'] || req?.headers?.host;
+  const host = req?.headers?.['x-forwarded-host'] || req?.headers?.host || '';
+  if (host.includes('vercel.app')) {
+    return 'https://enem-2026-pro.vercel.app';
+  }
+
   const proto = req?.headers?.['x-forwarded-proto'] || 'https';
-  return host ? `${proto}://${host}` : 'https://enem2026pro.vercel.app';
+  return host ? `${proto}://${host}` : 'https://enem-2026-pro.vercel.app';
 }
 
 export default async function handler(req: any, res: any) {
