@@ -482,7 +482,7 @@ export const paymentRepository = {
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select('*, profiles:user_id(name, email)')
+        .select('*, profiles:user_id(name, email, phone)')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -495,6 +495,7 @@ export const paymentRepository = {
         userId: row.user_id,
         userEmail: row.profiles?.email,
         userName: row.profiles?.name,
+        userPhone: row.profiles?.phone || row.user_phone,
         provider: row.provider,
         amountCents: row.amount_cents,
         currency: row.currency,
@@ -506,6 +507,10 @@ export const paymentRepository = {
         receiptUrl: row.receipt_url,
         captureMethod: row.capture_method,
         paidAt: row.paid_at,
+        couponId: row.coupon_id,
+        couponCodeSnapshot: row.coupon_code_snapshot,
+        originalPriceCents: row.original_price_cents || 3700,
+        discountCents: row.discount_cents || 0,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }));

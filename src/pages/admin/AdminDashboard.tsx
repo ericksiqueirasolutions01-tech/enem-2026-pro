@@ -71,7 +71,20 @@ import {
   Percent,
   Gift,
   Ticket,
+  DollarSign,
+  Receipt,
+  FileSpreadsheet,
+  ArrowUpRight,
 } from 'lucide-react';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+} from 'recharts';
 
 interface AdminDashboardProps {
   currentUser: User | null;
@@ -262,6 +275,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersFilter, setOrdersFilter] = useState<'TODOS' | 'PAID' | 'PENDING' | 'FAILED'>('TODOS');
   const [isReconciling, setIsReconciling] = useState<string | null>(null);
+  const [clientStatusFilter, setClientStatusFilter] = useState<'TODOS' | 'PAGOS' | 'BOLSISTAS' | 'PENDENTES'>('TODOS');
+  const [billingPeriodFilter, setBillingPeriodFilter] = useState<'ALL' | 'MONTH' | '30DAYS' | '7DAYS' | 'TODAY'>('ALL');
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
 
   const fetchOrders = async () => {
     setOrdersLoading(true);
@@ -766,6 +782,188 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
 
   const studentsList = users.filter((u) => u.role === 'ALUNO');
 
+  // =============================================================
+  // CÁLCULOS FINANCEIROS E MAPEAMENTO DE CLIENTES / PEDIDOS
+  // =============================================================
+  const paidOrders = orders.filter((o) => o.status === 'PAID');
+  const totalRevenueCents = paidOrders.reduce((sum, o) => sum + (o.amountCents || 0), 0);
+  const totalDiscountsCents = paidOrders.reduce((sum, o) => sum + (o.discountCents || 0), 0);
+  const freeScholarshipOrders = paidOrders.filter((o) => o.amountCents === 0).length;
+  const averageTicketCents = paidOrders.length > 0 ? Math.round(totalRevenueCents / paidOrders.length) : 0;
+  const conversionRate = orders.length > 0 ? Math.round((paidOrders.length / orders.length) * 100) : 0;
+
+  // Filtragem por Período de Faturamento
+  const filteredOrdersByPeriod = orders.filter((o) => {
+    if (billingPeriodFilter === 'ALL') return true;
+    const orderDate = new Date(o.createdAt).getTime();
+    const now = Date.now();
+    if (billingPeriodFilter === 'TODAY') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return orderDate >= today.getTime();
+    }
+    if (billingPeriodFilter === '7DAYS') {
+      return orderDate >= now - 7 * 24 * 60 * 60 * 1000;
+    }
+    if (billingPeriodFilter === '30DAYS') {
+      return orderDate >= now - 30 * 24 * 60 * 60 * 1000;
+    }
+    if (billingPeriodFilter === 'MONTH') {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      return orderDate >= startOfMonth.getTime();
+    }
+    return true;
+  });
+
+  const periodPaidOrders = filteredOrdersByPeriod.filter((o) => o.status === 'PAID');
+  const periodRevenueCents = periodPaidOrders.reduce((sum, o) => sum + (o.amountCents || 0), 0);
+  const periodDiscountsCents = periodPaidOrders.reduce((sum, o) => sum + (o.discountCents || 0), 0);
+  const periodScholarships = periodPaidOrders.filter((o) => o.amountCents === 0).length;
+  const periodAvgTicketCents = periodPaidOrders.length > 0 ? Math.round(periodRevenueCents / periodPaidOrders.length) : 0;
+  const periodConversionRate = filteredOrdersByPeriod.length > 0
+    ? Math.round((periodPaidOrders.length / filteredOrdersByPeriod.length) * 100)
+    : 0;
+
+  // Mapeamento de Detalhes Financeiros por Estudante
+  const getStudentOrderDetails = (student: User) => {
+    const studentOrders = orders.filter(
+      (o) => o.userId === student.id || (o.userEmail && o.userEmail.toLowerCase() === student.email.toLowerCase())
+    );
+    const studentPaidOrders = studentOrders.filter((o) => o.status === 'PAID');
+    const studentTotalPaidCents = studentPaidOrders.reduce((acc, o) => acc + (o.amountCents || 0), 0);
+    const lastOrder = studentPaidOrders[0] || studentOrders[0];
+    const isFree = studentPaidOrders.some((o) => o.amountCents === 0);
+
+    let paymentCategory: 'PAGO' | 'BOLSA' | 'PENDENTE' | 'REPROVADO' = 'PENDENTE';
+    if (student.status === 'REPROVADO') {
+      paymentCategory = 'REPROVADO';
+    } else if (studentPaidOrders.length > 0) {
+      paymentCategory = isFree ? 'BOLSA' : 'PAGO';
+    } else if (student.status === 'APROVADO') {
+      paymentCategory = 'PAGO'; // Acesso manual/cortesia
+    }
+
+    return {
+      orders: studentOrders,
+      paidOrders: studentPaidOrders,
+      totalPaidCents: studentTotalPaidCents,
+      lastOrder,
+      isFree,
+      paymentCategory,
+    };
+  };
+
+  // Contagens para os Filtros da Aba de Alunos
+  const paidStudentsCount = studentsList.filter((st) => getStudentOrderDetails(st).paymentCategory === 'PAGO').length;
+  const scholarshipStudentsCount = studentsList.filter((st) => getStudentOrderDetails(st).paymentCategory === 'BOLSA').length;
+  const pendingStudentsCount = studentsList.filter((st) => getStudentOrderDetails(st).paymentCategory === 'PENDENTE').length;
+
+  // Dados para Gráfico de Evolução de Receita (Recharts AreaChart)
+  const revenueChartData = (() => {
+    const sorted = [...periodPaidOrders].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
+    const mapByDate = new Map<string, { date: string; displayDate: string; revenue: number; ordersCount: number }>();
+    sorted.forEach((o) => {
+      const d = new Date(o.createdAt);
+      const key = d.toISOString().slice(0, 10);
+      const displayDate = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      const current = mapByDate.get(key) || { date: key, displayDate, revenue: 0, ordersCount: 0 };
+      current.revenue += (o.amountCents || 0) / 100;
+      current.ordersCount += 1;
+      mapByDate.set(key, current);
+    });
+
+    const list = Array.from(mapByDate.values());
+    if (list.length === 0) {
+      return [
+        {
+          date: new Date().toISOString().slice(0, 10),
+          displayDate: 'Hoje',
+          revenue: periodRevenueCents / 100,
+          ordersCount: periodPaidOrders.length,
+        },
+      ];
+    }
+    return list;
+  })();
+
+  // Métodos de Pagamento & Cupons Top
+  const pixOrders = periodPaidOrders.filter((o) => (o.captureMethod || '').toLowerCase().includes('pix'));
+  const cardOrders = periodPaidOrders.filter((o) => (o.captureMethod || '').toLowerCase().includes('credit') || (o.captureMethod || '').toLowerCase().includes('cart') || (!o.captureMethod && o.amountCents > 0));
+  const pixRevenueCents = pixOrders.reduce((sum, o) => sum + (o.amountCents || 0), 0);
+  const cardRevenueCents = cardOrders.reduce((sum, o) => sum + (o.amountCents || 0), 0);
+
+  // Exportação CSV de Clientes
+  const handleExportClientsCSV = () => {
+    const headers = [
+      'ID_Aluno',
+      'Nome',
+      'Email',
+      'Telefone',
+      'Status_Acesso',
+      'Situacao_Financeira',
+      'Valor_Total_Pago_BRL',
+      'Cupom_Utilizado',
+      'Metodo_Pagamento',
+      'Ultimo_NSU_Pedido',
+      'Curso_Alvo',
+      'Universidade_Alvo',
+      'Data_Cadastro',
+    ];
+
+    const rows = studentsList.map((st) => {
+      const prof = profiles.find((p) => p.userId === st.id);
+      const payInfo = getStudentOrderDetails(st);
+      return [
+        st.id,
+        `"${(st.name || '').replace(/"/g, '""')}"`,
+        `"${st.email}"`,
+        `"${st.phone || ''}"`,
+        st.status,
+        payInfo.paymentCategory,
+        (payInfo.totalPaidCents / 100).toFixed(2).replace('.', ','),
+        payInfo.lastOrder?.couponCodeSnapshot || '',
+        payInfo.lastOrder?.captureMethod || '',
+        payInfo.lastOrder?.externalReference || '',
+        `"${(prof?.targetCourse || '').replace(/"/g, '""')}"`,
+        `"${(prof?.targetUniversity || '').replace(/"/g, '""')}"`,
+        new Date(st.createdAt).toLocaleDateString('pt-BR'),
+      ].join(';');
+    });
+
+    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `clientes_faturamento_enem_2026_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setAdminToast('Planilha de clientes e faturamento exportada com sucesso!');
+    setTimeout(() => setAdminToast(null), 3500);
+  };
+
+  // Ranking de Cupons Utilizados
+  const couponStats = (() => {
+    const map = new Map<string, { code: string; uses: number; totalDiscountCents: number }>();
+    periodPaidOrders.forEach((o) => {
+      if (o.couponCodeSnapshot) {
+        const key = o.couponCodeSnapshot.toUpperCase();
+        const current = map.get(key) || { code: key, uses: 0, totalDiscountCents: 0 };
+        current.uses += 1;
+        current.totalDiscountCents += (o.discountCents || 0);
+        map.set(key, current);
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => b.uses - a.uses);
+  })();
+
   return (
     <div className="space-y-8 animate-fadeIn pb-16">
       {/* Header */}
@@ -816,8 +1014,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
           },
           {
             id: 'VENDAS',
-            label: `Vendas & InfinitePay (${orders.filter((o) => o.status === 'PAID').length})`,
-            icon: CreditCard,
+            label: `Vendas & Faturamento (${orders.filter((o) => o.status === 'PAID').length})`,
+            icon: DollarSign,
           },
           {
             id: 'CUPONS',
@@ -829,7 +1027,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
           { id: 'QUESTOES', label: `Banco de Questões (${questions.length})`, icon: HelpCircle },
           { id: 'SIMULADOS', label: `Simulados (${simulados.length})`, icon: FileCheck2 },
           { id: 'REDACAO', label: `Temas de Redação (${topics.length})`, icon: PenTool },
-          { id: 'ALUNOS', label: `Alunos Cadastrados (${studentsList.length})`, icon: Users },
+          { id: 'ALUNOS', label: `Clientes & Alunos (${studentsList.length})`, icon: Users },
           { id: 'IMPORTAR_PDF', label: `Importar PDFs & Gabaritos (${pdfDrafts.length})`, icon: UploadCloud },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -908,6 +1106,60 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
               <span className="text-[11px] text-emerald-500 font-bold mt-1 block">
                 Acerto global nas questões
               </span>
+            </div>
+          </div>
+
+          {/* Panorama Geral de Faturamento */}
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-emerald-500" />
+                  Panorama Geral de Faturamento & Vendas
+                </h3>
+                <p className="text-xs text-slate-500">Métricas financeiras consolidadas da plataforma InfinitePay</p>
+              </div>
+              <button
+                onClick={() => setActiveTab('VENDAS')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+              >
+                <span>Ver Dashboard Completo de Faturamento</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Faturamento Total</span>
+                <span className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
+                  R$ {(totalRevenueCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">{paidOrders.length} vendas pagas</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-900/40">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Ticket Médio</span>
+                <span className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400 mt-1 block">
+                  R$ {(averageTicketCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Por aluno pagante</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-900/40">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Descontos Cupons</span>
+                <span className="text-xl sm:text-2xl font-black text-purple-600 dark:text-purple-400 mt-1 block">
+                  R$ {(totalDiscountsCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Desconto concedido</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Bolsas 100% OFF</span>
+                <span className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 mt-1 block">
+                  {freeScholarshipOrders}
+                </span>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Bolsistas gratuitos</span>
+              </div>
             </div>
           </div>
 
@@ -1209,7 +1461,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
       )}
 
       {/* ========================================================================= */}
-      {/* TAB: VENDAS & INFINITEPAY */}
+      {/* TAB: VENDAS & FATURAMENTO (DASHBOARD FINANCEIRO)                           */}
       {/* ========================================================================= */}
       {activeTab === 'VENDAS' && (
         <div className="space-y-6">
@@ -1218,103 +1470,351 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
             <div className="space-y-2 max-w-2xl">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-black border border-emerald-200 dark:border-emerald-800">
                 <CreditCard className="w-3.5 h-3.5" />
-                <span>Gateway Oficial InfinitePay • R$ 37,00</span>
+                <span>Gateway Oficial InfinitePay • R$ 37,00 (Preço Base)</span>
               </div>
               <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                Vendas & Transações InfinitePay
+                Dashboard de Vendas & Faturamento
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                Acompanhamento em tempo real de pedidos gerados via checkout oficial InfinitePay (Pix e Cartão). Liberação 100% automatizada e idempotente via webhook seguro e conciliação direta com a CloudWalk.
+                Acompanhamento em tempo real de receita líquida, ticket médio, conversão de checkout, distribuição de métodos de pagamento, cupons aplicados e conciliação idempotente com a CloudWalk.
               </p>
             </div>
 
-            <div className="flex items-center gap-2.5 shrink-0">
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              <button
+                onClick={handleExportClientsCSV}
+                className="px-4 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-colors"
+                title="Exportar planilha completa de clientes e valores pagos"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Exportar Relatório (CSV)</span>
+              </button>
+
               <button
                 onClick={fetchOrders}
                 disabled={ordersLoading}
                 className="px-4 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
               >
                 <RefreshCw className={`w-4 h-4 ${ordersLoading ? 'animate-spin text-emerald-500' : ''}`} />
-                <span>{ordersLoading ? 'Atualizando...' : 'Atualizar Dados'}</span>
+                <span>{ordersLoading ? 'Atualizando...' : 'Atualizar'}</span>
               </button>
             </div>
           </div>
 
-          {/* Quick KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-              <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
-                <span>Total Faturado</span>
-                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
+          {/* Period Filter Selector */}
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black uppercase text-slate-400 tracking-wider">Período de Análise:</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[
+                  { id: 'TODAY', label: 'Hoje' },
+                  { id: '7DAYS', label: 'Últimos 7 dias' },
+                  { id: '30DAYS', label: 'Últimos 30 dias' },
+                  { id: 'MONTH', label: 'Este Mês' },
+                  { id: 'ALL', label: 'Todo o Período' },
+                ].map((period) => (
+                  <button
+                    key={period.id}
+                    onClick={() => setBillingPeriodFilter(period.id as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      billingPeriodFilter === period.id
+                        ? 'bg-emerald-600 text-white shadow-xs font-black'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {period.label}
+                  </button>
+                ))}
               </div>
-              <div className="text-2xl font-black text-slate-900 dark:text-white">
-                R${' '}
-                {(
-                  orders
-                    .filter((o) => o.status === 'PAID')
-                    .reduce((acc, o) => acc + (o.amountCents || 3700), 0) / 100
-                ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1">Acessos confirmados e liberados</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-              <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
-                <span>Vendas Pagas</span>
-                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                {orders.filter((o) => o.status === 'PAID').length}
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1">Alunos ativos no ENEM 2026 PRO</p>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-              <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
-                <span>Aguardando Pagamento</span>
-                <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600">
-                  <Clock className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
-                {orders.filter((o) => o.status === 'PENDING').length}
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1">Links gerados no checkout</p>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-              <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
-                <span>Preço do Acesso</span>
-                <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600">
-                  <Shield className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="text-2xl font-black text-slate-900 dark:text-white">
-                R$ 37,00
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1">Handle: erick-siqueira-bg2</p>
+            <div className="text-xs font-bold text-slate-500">
+              Exibindo <span className="text-slate-900 dark:text-white font-black">{periodPaidOrders.length}</span> vendas confirmadas no filtro
             </div>
           </div>
 
-          {/* Filter & Search */}
+          {/* 6 Executive Financial KPI Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+            {/* 1. Faturamento */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-[11px] font-bold mb-1">
+                <span>Faturamento</span>
+                <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                R$ {(periodRevenueCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">No período selecionado</p>
+            </div>
+
+            {/* 2. Ticket Médio */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-[11px] font-bold mb-1">
+                <span>Ticket Médio</span>
+                <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600">
+                  <DollarSign className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400">
+                R$ {(periodAvgTicketCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">Por venda concluída</p>
+            </div>
+
+            {/* 3. Vendas Pagas */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-[11px] font-bold mb-1">
+                <span>Vendas Pagas</span>
+                <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+                {periodPaidOrders.length}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">Pedidos confirmados</p>
+            </div>
+
+            {/* 4. Descontos Concedidos */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-[11px] font-bold mb-1">
+                <span>Descontos Cupons</span>
+                <div className="p-1.5 rounded-lg bg-purple-50 dark:bg-purple-950/50 text-purple-600">
+                  <Tag className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-purple-600 dark:text-purple-400">
+                R$ {(periodDiscountsCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">Economia aos alunos</p>
+            </div>
+
+            {/* 5. Bolsas 100% OFF */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-[11px] font-bold mb-1">
+                <span>Bolsas 100%</span>
+                <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600">
+                  <Gift className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400">
+                {periodScholarships}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">Acessos gratuitos</p>
+            </div>
+
+            {/* 6. Taxa de Conversão */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between text-slate-500 text-[11px] font-bold mb-1">
+                <span>Conversão</span>
+                <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600">
+                  <Percent className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+                {periodConversionRate}%
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">Checkouts pagos</p>
+            </div>
+          </div>
+
+          {/* Interactive Recharts AreaChart: Evolução da Receita */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-500" />
+                  Evolução do Faturamento & Curva de Vendas
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Faturamento diário acumulado com base em transações liquidadas no gateway
+                </p>
+              </div>
+              <div className="text-left sm:text-right">
+                <span className="text-[11px] text-slate-400 uppercase font-bold block">Receita Acumulada</span>
+                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                  R$ {(periodRevenueCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+
+            <div className="h-64 sm:h-72 w-full pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={revenueChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-800" vertical={false} />
+                  <XAxis dataKey="displayDate" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                  <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} tickFormatter={(val) => `R$ ${val}`} />
+                  <RechartsTooltip
+                    formatter={(value: any) => [
+                      `R$ ${Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                      'Receita do Dia',
+                    ]}
+                    labelFormatter={(label) => `Data: ${label}`}
+                    contentStyle={{
+                      backgroundColor: '#0f172a',
+                      borderColor: '#334155',
+                      borderRadius: '0.75rem',
+                      color: '#f8fafc',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#10b981"
+                    strokeWidth={3}
+                    fillOpacity={1}
+                    fill="url(#colorRevenue)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Secondary Grid: Métodos de Pagamento & Ranking de Cupons */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Card 1: Distribuição de Métodos de Pagamento */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-indigo-500" />
+                  Métodos de Pagamento (No Período)
+                </h3>
+                <span className="text-xs font-bold text-slate-400">{periodPaidOrders.length} liquidadas</span>
+              </div>
+
+              <div className="space-y-3">
+                {/* Pix */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600">
+                      <QrCode className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>Pix Instantâneo</span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                          {periodPaidOrders.length > 0 ? Math.round((pixOrders.length / periodPaidOrders.length) * 100) : 0}%
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-400">{pixOrders.length} pagamentos confirmados</div>
+                    </div>
+                  </div>
+                  <div className="text-right font-black text-slate-900 dark:text-white text-sm">
+                    R$ {(pixRevenueCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+
+                {/* Cartão de Crédito */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>Cartão de Crédito</span>
+                        <span className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold">
+                          {periodPaidOrders.length > 0 ? Math.round((cardOrders.length / periodPaidOrders.length) * 100) : 0}%
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-400">{cardOrders.length} pagamentos processados</div>
+                    </div>
+                  </div>
+                  <div className="text-right font-black text-slate-900 dark:text-white text-sm">
+                    R$ {(cardRevenueCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+
+                {/* Bolsa 100% OFF */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600">
+                      <Gift className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-slate-900 dark:text-white">Bolsa Integral 100% OFF</div>
+                      <div className="text-[11px] text-slate-400">{periodScholarships} alunos com cupom total</div>
+                    </div>
+                  </div>
+                  <div className="text-right font-black text-amber-600 dark:text-amber-400 text-sm">
+                    R$ 0,00 (Gratuito)
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: Performance de Cupons de Desconto */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-purple-500" />
+                  Top Cupons no Período
+                </h3>
+                <button
+                  onClick={() => setActiveTab('CUPONS')}
+                  className="text-xs font-bold text-rose-600 hover:underline cursor-pointer"
+                >
+                  Gerenciar Cupons
+                </button>
+              </div>
+
+              {couponStats.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+                  <Tag className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                  <p className="text-xs font-bold text-slate-600 dark:text-slate-400">Nenhum cupom aplicado nas vendas deste período</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">As compras foram realizadas com o valor integral de R$ 37,00.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-60 overflow-y-auto">
+                  {couponStats.slice(0, 5).map((cp) => (
+                    <div
+                      key={cp.code}
+                      className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="px-2.5 py-1 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-mono text-xs font-black">
+                          {cp.code}
+                        </span>
+                        <span className="text-xs text-slate-500 font-bold">{cp.uses} {cp.uses === 1 ? 'uso' : 'usos'}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs font-black text-purple-600 dark:text-purple-400 block">
+                          - R$ {(cp.totalDiscountCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block">Desconto total</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Filter & Search for Orders */}
           <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
             <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
               {[
-                { id: 'TODOS', label: 'Todas as Vendas' },
-                { id: 'PAID', label: 'Pagas' },
+                { id: 'TODOS', label: 'Todos os Pedidos' },
+                { id: 'PAID', label: 'Pagos' },
                 { id: 'PENDING', label: 'Pendentes' },
-                { id: 'FAILED', label: 'Falhas / Canceladas' },
+                { id: 'FAILED', label: 'Falhas / Cancelados' },
               ].map((f) => (
                 <button
                   key={f.id}
                   onClick={() => setOrdersFilter(f.id as any)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                     ordersFilter === f.id
-                      ? 'bg-rose-600 text-white shadow-xs'
+                      ? 'bg-rose-600 text-white shadow-xs font-black'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
@@ -1323,11 +1823,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
               ))}
             </div>
 
-            <div className="relative w-full sm:w-72">
+            <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Buscar por ID, NSU..."
+                placeholder="Buscar por NSU, email, cliente..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-500"
@@ -1337,7 +1837,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
 
           {/* Orders Table / List */}
           {(() => {
-            const filtered = orders.filter((o) => {
+            const filtered = filteredOrdersByPeriod.filter((o) => {
               if (ordersFilter === 'PAID' && o.status !== 'PAID') return false;
               if (ordersFilter === 'PENDING' && o.status !== 'PENDING') return false;
               if (ordersFilter === 'FAILED' && o.status !== 'FAILED') return false;
@@ -1346,6 +1846,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
                 return (
                   o.id.toLowerCase().includes(q) ||
                   o.externalReference.toLowerCase().includes(q) ||
+                  (o.userEmail && o.userEmail.toLowerCase().includes(q)) ||
+                  (o.userName && o.userName.toLowerCase().includes(q)) ||
+                  (o.couponCodeSnapshot && o.couponCodeSnapshot.toLowerCase().includes(q)) ||
                   (o.providerPaymentId && o.providerPaymentId.toLowerCase().includes(q))
                 );
               }
@@ -1360,8 +1863,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
                     Nenhum pedido encontrado
                   </h3>
                   <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                    {ordersFilter !== 'TODOS'
-                      ? 'Nenhum pedido corresponde ao filtro selecionado.'
+                    {ordersFilter !== 'TODOS' || billingPeriodFilter !== 'ALL'
+                      ? 'Nenhum pedido corresponde aos filtros e período selecionados.'
                       : 'Quando novos alunos gerarem links de checkout ou pagarem via InfinitePay, os registros aparecerão aqui.'}
                   </p>
                 </div>
@@ -1373,8 +1876,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-black uppercase tracking-wider text-slate-400">
+                      <th className="py-4 px-6">Cliente</th>
                       <th className="py-4 px-6">Identificador / NSU</th>
-                      <th className="py-4 px-6">Valor</th>
+                      <th className="py-4 px-6">Preço Original</th>
+                      <th className="py-4 px-6">Desconto / Cupom</th>
+                      <th className="py-4 px-6">Valor Pago</th>
                       <th className="py-4 px-6">Método</th>
                       <th className="py-4 px-6">Status</th>
                       <th className="py-4 px-6">Data</th>
@@ -1386,9 +1892,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
                       const isPaid = order.status === 'PAID';
                       const isPending = order.status === 'PENDING';
                       const isFailed = order.status === 'FAILED';
+                      const origPrice = order.originalPriceCents ? order.originalPriceCents / 100 : 37.0;
+                      const paidPrice = (order.amountCents || 0) / 100;
+                      const discountVal = order.discountCents ? order.discountCents / 100 : 0;
+                      const matchedUser = users.find(
+                        (u) => u.id === order.userId || (order.userEmail && u.email.toLowerCase() === order.userEmail.toLowerCase())
+                      );
+                      const customerPhone = order.userPhone || matchedUser?.phone;
 
                       return (
                         <tr key={order.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                          <td className="py-4 px-6">
+                            <div className="font-black text-slate-900 dark:text-white">
+                              {order.userName || matchedUser?.name || 'Aluno Cadastrado'}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono">
+                              {order.userEmail || matchedUser?.email || 'email não informado'}
+                            </div>
+                            {customerPhone && (
+                              <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                <Phone className="w-3 h-3" />
+                                <span>{customerPhone}</span>
+                              </div>
+                            )}
+                          </td>
                           <td className="py-4 px-6">
                             <div className="font-bold text-slate-900 dark:text-white font-mono text-[11px]">
                               {order.externalReference}
@@ -1398,17 +1925,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
                             </div>
                           </td>
                           <td className="py-4 px-6">
-                            <div className="font-black text-slate-900 dark:text-white">
-                              R${' '}
-                              {((order.amountCents || 3700) / 100).toLocaleString('pt-BR', {
-                                minimumFractionDigits: 2,
-                              })}
+                            <span className="text-slate-500 line-through">
+                              R$ {origPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6">
+                            {order.couponCodeSnapshot ? (
+                              <div>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 font-mono text-[10px] font-black border border-purple-200 dark:border-purple-800">
+                                  <Tag className="w-2.5 h-2.5" />
+                                  {order.couponCodeSnapshot}
+                                </span>
+                                {discountVal > 0 && (
+                                  <div className="text-[10px] text-emerald-600 font-bold mt-0.5">
+                                    - R$ {discountVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-slate-400">Sem cupom</span>
+                            )}
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="font-black text-slate-900 dark:text-white text-sm">
+                              R$ {paidPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </div>
-                            <div className="text-[10px] text-slate-400">1x vitalício</div>
+                            <div className="text-[10px] text-slate-400">
+                              {paidPrice === 0 ? 'Bolsa 100%' : '1x vitalício'}
+                            </div>
                           </td>
                           <td className="py-4 px-6">
                             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold">
-                              {order.captureMethod === 'pix' || order.captureMethod === 'PIX' ? (
+                              {paidPrice === 0 ? (
+                                <>
+                                  <Gift className="w-3 h-3 text-amber-500" />
+                                  <span>Bolsa</span>
+                                </>
+                              ) : order.captureMethod === 'pix' || order.captureMethod === 'PIX' ? (
                                 <>
                                   <QrCode className="w-3 h-3 text-emerald-500" />
                                   <span>Pix</span>
@@ -1416,7 +1969,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
                               ) : (
                                 <>
                                   <CreditCard className="w-3 h-3 text-indigo-500" />
-                                  <span>{order.captureMethod || 'InfinitePay'}</span>
+                                  <span>{order.captureMethod || 'Cartão'}</span>
                                 </>
                               )}
                             </div>
@@ -2466,83 +3019,345 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 5: ALUNOS CADASTRADOS */}
+      {/* TAB 5: CLIENTES & ALUNOS CADASTRADOS (GESTÃO FINANCEIRA & ACADÊMICA)      */}
       {/* ========================================================================= */}
       {activeTab === 'ALUNOS' && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-          <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-            <h2 className="text-sm font-black text-slate-900 dark:text-white">
-              Lista de Estudantes Cadastrados
-            </h2>
-            <span className="text-xs text-slate-400 font-bold">
-              Total: {studentsList.length} alunos
-            </span>
+        <div className="space-y-6">
+          {/* Header Card */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-xs font-black border border-blue-200 dark:border-blue-800">
+                <Users className="w-3.5 h-3.5" />
+                <span>Base Unificada de Clientes & Alunos</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                Clientes Cadastrados & Situação Financeira
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                Acompanhe o status de acesso de cada estudante, valor total pago em compras via InfinitePay, cupons utilizados, dados de contato direto e histórico acadêmico.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                onClick={handleExportClientsCSV}
+                className="px-4 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-colors"
+                title="Exportar planilha Excel/CSV com todos os clientes e valores pagos"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Exportar Planilha (CSV)</span>
+              </button>
+            </div>
           </div>
 
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {studentsList.map((st) => {
-              const prof = profiles.find((p) => p.userId === st.id);
+          {/* 4 Summary Counters */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider">Total de Alunos</span>
+                <Users className="w-4 h-4 text-blue-500" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                {studentsList.length}
+              </div>
+              <span className="text-[11px] text-slate-400 mt-1 block">Cadastros na plataforma</span>
+            </div>
 
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider">Pagantes Confirmados</span>
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">
+                {paidStudentsCount}
+              </div>
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold mt-1 block">
+                R$ {(totalRevenueCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} faturado
+              </span>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider">Bolsistas 100% OFF</span>
+                <Gift className="w-4 h-4 text-cyan-500" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-cyan-600 dark:text-cyan-400">
+                {scholarshipStudentsCount}
+              </div>
+              <span className="text-[11px] text-cyan-600 dark:text-cyan-400 font-bold mt-1 block">
+                Acesso gratuito via cupom
+              </span>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider">Aguardando Pagamento</span>
+                <Clock className="w-4 h-4 text-amber-500" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400">
+                {pendingStudentsCount}
+              </div>
+              <span className="text-[11px] text-amber-600 dark:text-amber-400 font-bold mt-1 block">
+                Sem pedido pago ativo
+              </span>
+            </div>
+          </div>
+
+          {/* Filters & Search Toolbar */}
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
+              {[
+                { id: 'TODOS', label: `Todos (${studentsList.length})` },
+                { id: 'PAGOS', label: `Pagos (${paidStudentsCount})` },
+                { id: 'BOLSISTAS', label: `Bolsas 100% (${scholarshipStudentsCount})` },
+                { id: 'PENDENTES', label: `Pendentes (${pendingStudentsCount})` },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setClientStatusFilter(f.id as any)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                    clientStatusFilter === f.id
+                      ? 'bg-rose-600 text-white shadow-xs font-black'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Buscar por nome, email, telefone, curso..."
+                value={clientSearchQuery}
+                onChange={(e) => setClientSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+          </div>
+
+          {/* Student & Client List */}
+          {(() => {
+            const filteredStudents = studentsList.filter((st) => {
+              const payInfo = getStudentOrderDetails(st);
+              if (clientStatusFilter === 'PAGOS' && payInfo.paymentCategory !== 'PAGO') return false;
+              if (clientStatusFilter === 'BOLSISTAS' && payInfo.paymentCategory !== 'BOLSA') return false;
+              if (clientStatusFilter === 'PENDENTES' && payInfo.paymentCategory !== 'PENDENTE') return false;
+
+              if (clientSearchQuery.trim()) {
+                const q = clientSearchQuery.toLowerCase();
+                const prof = profiles.find((p) => p.userId === st.id);
+                const matchesName = (st.name || '').toLowerCase().includes(q);
+                const matchesEmail = (st.email || '').toLowerCase().includes(q);
+                const matchesPhone = (st.phone || '').toLowerCase().includes(q);
+                const matchesCourse = (prof?.targetCourse || '').toLowerCase().includes(q);
+                const matchesUni = (prof?.targetUniversity || '').toLowerCase().includes(q);
+                const matchesNsu = (payInfo.lastOrder?.externalReference || '').toLowerCase().includes(q);
+                const matchesCoupon = (payInfo.lastOrder?.couponCodeSnapshot || '').toLowerCase().includes(q);
+                return matchesName || matchesEmail || matchesPhone || matchesCourse || matchesUni || matchesNsu || matchesCoupon;
+              }
+              return true;
+            });
+
+            if (filteredStudents.length === 0) {
               return (
-                <div key={st.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={st.avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${st.email}`}
-                      alt="Avatar"
-                      className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700"
-                    />
-                    <div>
-                      <h3 className="text-xs font-black text-slate-900 dark:text-white">
-                        {st.name}
-                      </h3>
-                      <p className="text-[11px] text-slate-400">
-                        {st.email} • Cadastro em {new Date(st.createdAt).toLocaleDateString('pt-BR')}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-4 text-xs font-medium">
-                    <div>
-                      <span className="text-[10px] text-slate-400 block">Objetivo</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">
-                        {prof?.targetCourse || 'Não informado'} ({prof?.targetUniversity || 'Não informada'})
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] text-slate-400 block">Meta TRI</span>
-                      <span className="font-bold text-purple-600 dark:text-purple-400">
-                        {prof?.targetScore || 800} pts
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] text-slate-400 block">Nível & XP</span>
-                      <span className="font-bold text-amber-600 dark:text-amber-400">
-                        Nvl {prof?.level || 1} • {prof?.xp ?? 0} XP
-                      </span>
-                    </div>
-
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setResetModalStudent(st);
-                          setResetConfirmWord('');
-                          setResetReason('');
-                          setResetModalError(null);
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[11px] font-bold transition-colors cursor-pointer"
-                        title="Zerar apenas histórico de questões, simulados e horas do aluno"
-                      >
-                        Zerar Jornada
-                      </button>
-                    </div>
-                  </div>
+                <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
+                  <Users className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                  <h3 className="text-base font-bold text-slate-700 dark:text-slate-300">
+                    Nenhum aluno encontrado
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                    Nenhum estudante corresponde ao filtro ou critério de busca pesquisado.
+                  </p>
                 </div>
               );
-            })}
-          </div>
+            }
+
+            return (
+              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                  <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                    {filteredStudents.length} {filteredStudents.length === 1 ? 'Estudante Exibido' : 'Estudantes Exibidos'}
+                  </h3>
+                  <span className="text-xs text-slate-400 font-bold">
+                    Ordenado por cadastro
+                  </span>
+                </div>
+
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredStudents.map((st) => {
+                    const prof = profiles.find((p) => p.userId === st.id);
+                    const payInfo = getStudentOrderDetails(st);
+                    const isPaid = payInfo.paymentCategory === 'PAGO';
+                    const isBolsa = payInfo.paymentCategory === 'BOLSA';
+                    const isPendente = payInfo.paymentCategory === 'PENDENTE';
+                    const isReprovado = payInfo.paymentCategory === 'REPROVADO';
+                    const lastOrder = payInfo.lastOrder;
+
+                    return (
+                      <div
+                        key={st.id}
+                        className="p-4 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-5 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors"
+                      >
+                        {/* Profile Info */}
+                        <div className="flex items-start gap-4 min-w-0">
+                          <img
+                            src={st.avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${st.email}`}
+                            alt="Avatar"
+                            className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                                {st.name}
+                              </h3>
+                              {/* Financial Badge */}
+                              {isPaid && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                  R$ {(payInfo.totalPaidCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (Pago)
+                                </span>
+                              )}
+                              {isBolsa && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">
+                                  <Gift className="w-3 h-3 text-cyan-500" />
+                                  R$ 0,00 (Bolsa 100% OFF)
+                                </span>
+                              )}
+                              {isPendente && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                  <Clock className="w-3 h-3 text-amber-500" />
+                                  Aguardando Pagamento
+                                </span>
+                              )}
+                              {isReprovado && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                                  <AlertTriangle className="w-3 h-3 text-rose-500" />
+                                  Acesso Bloqueado
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="text-xs text-slate-500 mt-0.5 truncate font-mono">
+                              {st.email}
+                            </p>
+
+                            <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1.5 flex-wrap">
+                              {st.phone ? (
+                                <a
+                                  href={`tel:${st.phone.replace(/\D/g, '')}`}
+                                  className="flex items-center gap-1 text-slate-600 dark:text-slate-300 hover:text-emerald-600 font-bold"
+                                  title="Clique para ligar / WhatsApp"
+                                >
+                                  <Phone className="w-3 h-3 text-emerald-500" />
+                                  <span>{st.phone}</span>
+                                </a>
+                              ) : (
+                                <span className="text-slate-400">Sem telefone</span>
+                              )}
+                              <span>•</span>
+                              <span>Cadastro: {new Date(st.createdAt).toLocaleDateString('pt-BR')}</span>
+                              {lastOrder && (
+                                <>
+                                  <span>•</span>
+                                  <span className="font-mono text-[10px]">NSU: {lastOrder.externalReference}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Financial & Academic Info */}
+                        <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-xs font-medium">
+                          {/* Cupom Utilizado (se houver) */}
+                          {lastOrder?.couponCodeSnapshot && (
+                            <div>
+                              <span className="text-[10px] text-slate-400 block font-bold uppercase">Cupom Usado</span>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-mono text-[11px] font-black border border-purple-200 dark:border-purple-800 mt-0.5">
+                                <Tag className="w-2.5 h-2.5" />
+                                {lastOrder.couponCodeSnapshot}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Método de Pagamento */}
+                          {lastOrder && (
+                            <div>
+                              <span className="text-[10px] text-slate-400 block font-bold uppercase">Método</span>
+                              <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                                {lastOrder.captureMethod === 'pix' || lastOrder.captureMethod === 'PIX'
+                                  ? 'Pix Instantâneo'
+                                  : lastOrder.amountCents === 0
+                                  ? 'Bolsa de Estudo'
+                                  : 'Cartão de Crédito'}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Objetivo */}
+                          <div>
+                            <span className="text-[10px] text-slate-400 block font-bold uppercase">Curso Alvo</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                              {prof?.targetCourse || 'Não informado'}
+                            </span>
+                            <span className="text-[10px] text-slate-400 block">
+                              {prof?.targetUniversity || 'Universidade não informada'}
+                            </span>
+                          </div>
+
+                          {/* Meta TRI */}
+                          <div>
+                            <span className="text-[10px] text-slate-400 block font-bold uppercase">Meta TRI</span>
+                            <span className="font-black text-purple-600 dark:text-purple-400 mt-0.5 block">
+                              {prof?.targetScore || 800} pts
+                            </span>
+                          </div>
+
+                          {/* Nível & XP */}
+                          <div>
+                            <span className="text-[10px] text-slate-400 block font-bold uppercase">Progresso</span>
+                            <span className="font-bold text-amber-600 dark:text-amber-400 mt-0.5 block">
+                              Nvl {prof?.level || 1} • {prof?.xp ?? 0} XP
+                            </span>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-2">
+                            {lastOrder?.receiptUrl && (
+                              <a
+                                href={lastOrder.receiptUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                                title="Ver Comprovante de Pagamento"
+                              >
+                                <Receipt className="w-3.5 h-3.5" />
+                              </a>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setResetModalStudent(st);
+                                setResetConfirmWord('');
+                                setResetReason('');
+                                setResetModalError(null);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[11px] font-bold transition-colors cursor-pointer"
+                              title="Zerar apenas histórico de questões, simulados e horas do aluno"
+                            >
+                              Zerar Jornada
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

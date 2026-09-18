@@ -455,6 +455,7 @@ export interface Order {
   userId: string;
   userEmail?: string;
   userName?: string;
+  userPhone?: string;
   provider: 'infinitepay';
   amountCents: number;
   currency: string;
@@ -466,6 +467,10 @@ export interface Order {
   receiptUrl?: string | null;
   captureMethod?: 'pix' | 'credit_card' | string | null;
   paidAt?: string | null;
+  couponId?: string | null;
+  couponCodeSnapshot?: string | null;
+  originalPriceCents?: number;
+  discountCents?: number;
   createdAt: string;
   updatedAt: string;
 }
