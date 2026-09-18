@@ -42,16 +42,16 @@ export const Perfil: React.FC<PerfilProps> = ({ currentUser, onNavigate }) => {
   const profile = currentUser ? db.getStudentProfile(currentUser.id) : null;
 
   const [name, setName] = useState(currentUser?.name || '');
-  const [targetCourse, setTargetCourse] = useState(profile?.targetCourse || 'Medicina');
-  const [targetUniversity, setTargetUniversity] = useState(profile?.targetUniversity || 'USP');
+  const [targetCourse, setTargetCourse] = useState(profile?.targetCourse || '');
+  const [targetUniversity, setTargetUniversity] = useState(profile?.targetUniversity || '');
   const [targetScore, setTargetScore] = useState(profile?.targetScore || 800);
   const [studyHoursPerDay, setStudyHoursPerDay] = useState(profile?.studyHoursPerDay || 4);
   const [studyDaysPerWeek, setStudyDaysPerWeek] = useState(profile?.studyDaysPerWeek || 6);
-  const [city, setCity] = useState(profile?.city || 'São Paulo');
-  const [state, setState] = useState(profile?.state || 'SP');
-  const [school, setSchool] = useState(profile?.school || 'Escola Estadual');
+  const [city, setCity] = useState(profile?.city || '');
+  const [state, setState] = useState(profile?.state || '');
+  const [school, setSchool] = useState(profile?.school || '');
   const [difficultSubjects, setDifficultSubjects] = useState<string[]>(
-    profile?.difficultSubjects || ['Matemática', 'Física']
+    profile?.difficultSubjects || []
   );
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -78,6 +78,17 @@ export const Perfil: React.FC<PerfilProps> = ({ currentUser, onNavigate }) => {
       state,
       school,
       difficultSubjects,
+    });
+
+    // Sincroniza Metas do Aluno
+    const goals = db.getStudentGoals(currentUser.id);
+    db.saveStudentGoals({
+      ...goals,
+      targetCourse,
+      targetUniversity,
+      targetScore: Number(targetScore),
+      weeklyHoursGoal: Number(studyHoursPerDay) * Number(studyDaysPerWeek),
+      updatedAt: new Date().toISOString(),
     });
 
     // Se nome mudou, atualiza no storage também
@@ -139,7 +150,7 @@ export const Perfil: React.FC<PerfilProps> = ({ currentUser, onNavigate }) => {
               <span>{currentUser?.email}</span>
             </p>
             <div className="flex items-center justify-center sm:justify-start gap-2 text-xs text-slate-500 dark:text-slate-400 mt-2 font-medium">
-              <span>Objetivo: <strong>{targetCourse}</strong> na <strong>{targetUniversity}</strong></span>
+              <span>Objetivo: <strong>{targetCourse || 'Não definido'}</strong> na <strong>{targetUniversity || 'Não definida'}</strong></span>
             </div>
           </div>
         </div>
@@ -149,14 +160,14 @@ export const Perfil: React.FC<PerfilProps> = ({ currentUser, onNavigate }) => {
           <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-center">
             <div className="flex items-center justify-center gap-1 text-amber-500 text-sm font-black">
               <Flame className="w-4 h-4 fill-amber-500" />
-              <span>{profile?.streakDays || 8}</span>
+              <span>{profile?.streakDays ?? 0}</span>
             </div>
             <div className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Dias Ofensiva</div>
           </div>
           <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-center">
             <div className="flex items-center justify-center gap-1 text-brand-600 dark:text-brand-400 text-sm font-black">
               <Zap className="w-4 h-4 fill-brand-500" />
-              <span>Nvl {profile?.level || 6}</span>
+              <span>Nvl {profile?.level ?? 1}</span>
             </div>
             <div className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Nível Atual</div>
           </div>

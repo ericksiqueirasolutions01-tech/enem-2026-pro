@@ -52,7 +52,7 @@ export const SEED_USERS: { user: User; profile?: StudentProfile }[] = [
       state: 'SP',
       city: 'São Paulo',
       school: 'Colégio Estadual Santos Dumont',
-      targetCourse: 'Medicina',
+      targetCourse: 'Medicina (Demonstração)',
       targetUniversity: 'USP / UNICAMP',
       targetScore: 820,
       studyHoursPerDay: 4,

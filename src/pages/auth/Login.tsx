@@ -68,7 +68,12 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, onLoginSuccess }) => {
           if (res.user?.role === 'ADMINISTRADOR') {
             onNavigate('admin');
           } else {
-            onNavigate('dashboard');
+            const prof = res.user ? db.getStudentProfile(res.user.id) : null;
+            if (!prof || !prof.onboardingCompleted || !prof.targetCourse) {
+              onNavigate('onboarding');
+            } else {
+              onNavigate('dashboard');
+            }
           }
         }, 1000);
       } else {
@@ -99,7 +104,12 @@ export const Login: React.FC<LoginProps> = ({ onNavigate, onLoginSuccess }) => {
         if (res.user.role === 'ADMINISTRADOR') {
           onNavigate('admin');
         } else {
-          onNavigate('dashboard');
+          const prof = db.getStudentProfile(res.user.id);
+          if (!prof || !prof.onboardingCompleted || !prof.targetCourse) {
+            onNavigate('onboarding');
+          } else {
+            onNavigate('dashboard');
+          }
         }
       } else {
         setError(res.error || 'Credenciais inválidas.');

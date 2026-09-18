@@ -43,8 +43,9 @@ export const ApprovedOnlyRoute: React.FC<RouteGuardProps> = ({ currentUser, prof
     return children;
   }
 
-  // Se o aluno ainda não completou o onboarding
-  if (profile && !profile.onboardingCompleted && location.pathname !== '/onboarding') {
+  // Se o aluno ainda não completou o onboarding, redireciona estritamente para /onboarding
+  const isOnboardingPending = !profile || !profile.onboardingCompleted || !profile.targetCourse;
+  if (currentUser.role === 'ALUNO' && isOnboardingPending && location.pathname !== '/onboarding') {
     return <Navigate to="/onboarding" replace />;
   }
 

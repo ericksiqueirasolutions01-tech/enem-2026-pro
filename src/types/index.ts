@@ -29,14 +29,15 @@ export interface StudentProfile {
   state?: string;
   city?: string;
   school?: string;
-  targetCourse: string;
-  targetUniversity: string;
+  targetCourse?: string;
+  targetUniversity?: string;
   targetScore: number;
   studyHoursPerDay: number;
   studyDaysPerWeek: number;
   difficultSubjects: string[];
   examDate: string; // Ex: 2026-11-08
   onboardingCompleted: boolean;
+  onboardingCompletedAt?: string;
   streakDays: number;
   lastStudyDate: string;
   xp: number;

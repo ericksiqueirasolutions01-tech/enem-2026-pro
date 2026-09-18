@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { db } from '../../db/storage';
+import { userRepository } from '../../services/repositories/userRepository';
 import { User, Disciplina } from '../../types';
-import { Sparkles, ArrowRight, CheckCircle2, Clock, Calendar, Target, AlertTriangle } from 'lucide-react';
+import { Sparkles, ArrowRight, CheckCircle2, Clock, Calendar, Search, GraduationCap, School, AlertCircle } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface OnboardingProps {
@@ -9,18 +10,40 @@ interface OnboardingProps {
   onComplete: () => void;
 }
 
+const PRESET_COURSES = [
+  'Medicina',
+  'Direito',
+  'Engenharia Civil',
+  'Psicologia',
+  'Enfermagem',
+  'Odontologia',
+  'Administração',
+  'Ciência da Computação',
+  'Pedagogia',
+  'Fisioterapia',
+  'Arquitetura',
+  'Biomedicina',
+  'Outro',
+];
+
 export const Onboarding: React.FC<OnboardingProps> = ({ currentUser, onComplete }) => {
   const profile = currentUser ? db.getStudentProfile(currentUser.id) : null;
 
   const [step, setStep] = useState(1);
-  const [course, setCourse] = useState(profile?.targetCourse || 'Medicina');
-  const [targetScore, setTargetScore] = useState(profile?.targetScore || 820);
+  // GATE 2: Valor inicial estritamente vazio ou nulo (nunca Medicina pré-selecionada)
+  const [course, setCourse] = useState<string>(profile?.targetCourse || '');
+  const [isOther, setIsOther] = useState(false);
+  const [customCourse, setCustomCourse] = useState('');
+  const [courseSearch, setCourseSearch] = useState('');
+  const [targetUniversity, setTargetUniversity] = useState(profile?.targetUniversity || '');
+  const [targetScore, setTargetScore] = useState(profile?.targetScore || 800);
   const [hoursPerDay, setHoursPerDay] = useState(profile?.studyHoursPerDay || 4);
   const [daysPerWeek, setDaysPerWeek] = useState(profile?.studyDaysPerWeek || 6);
   const [difficultSubjects, setDifficultSubjects] = useState<string[]>(
     profile?.difficultSubjects || ['Matemática', 'Física', 'Química']
   );
   const [examDate, setExamDate] = useState('2026-11-08');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const disciplinasDisponiveis: Disciplina[] = [
     'Matemática',
@@ -37,6 +60,29 @@ export const Onboarding: React.FC<OnboardingProps> = ({ currentUser, onComplete 
     'Inglês',
   ];
 
+  const handleSelectCourse = (c: string) => {
+    setErrorMsg(null);
+    if (c === 'Outro') {
+      setIsOther(true);
+      setCourse('');
+    } else {
+      setIsOther(false);
+      setCourse(c);
+      setCustomCourse('');
+    }
+  };
+
+  const activeSelectedCourse = isOther ? customCourse.trim() : course.trim();
+
+  const handleStep1Next = () => {
+    if (!activeSelectedCourse) {
+      setErrorMsg('Por favor, selecione ou digite o curso que você deseja conquistar.');
+      return;
+    }
+    setErrorMsg(null);
+    setStep(2);
+  };
+
   const toggleSubject = (sub: string) => {
     if (difficultSubjects.includes(sub)) {
       setDifficultSubjects(difficultSubjects.filter((s) => s !== sub));
@@ -45,10 +91,12 @@ export const Onboarding: React.FC<OnboardingProps> = ({ currentUser, onComplete 
     }
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     if (currentUser) {
-      db.completeOnboarding(currentUser.id, {
-        targetCourse: course,
+      const finalCourse = activeSelectedCourse || 'Geral / Não Definido';
+      await userRepository.completeOnboarding(currentUser.id, {
+        targetCourse: finalCourse,
+        targetUniversity: targetUniversity.trim() || 'ENEM 2026',
         targetScore,
         studyHoursPerDay: hoursPerDay,
         studyDaysPerWeek: daysPerWeek,
@@ -66,6 +114,10 @@ export const Onboarding: React.FC<OnboardingProps> = ({ currentUser, onComplete 
     }
   };
 
+  const filteredCourses = PRESET_COURSES.filter((c) =>
+    c.toLowerCase().includes(courseSearch.toLowerCase().trim())
+  );
+
   return (
     <div className="max-w-2xl w-full mx-auto p-4 sm:p-6 my-auto">
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-10 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-6">
@@ -74,7 +126,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ currentUser, onComplete 
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-brand-600 dark:text-brand-400" />
             <span className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-              Personalização do Aluno
+              Personalize sua Jornada
             </span>
           </div>
           <span className="text-xs font-bold text-slate-400">
@@ -82,32 +134,107 @@ export const Onboarding: React.FC<OnboardingProps> = ({ currentUser, onComplete 
           </span>
         </div>
 
-        {/* STEP 1: Curso & Meta de Nota */}
+        {/* STEP 1: Escolha do Curso & Faculdade (GATE 2 Oficial) */}
         {step === 1 && (
           <div className="space-y-6 animate-in fade-in">
-            <div className="space-y-1">
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-50 dark:bg-brand-950/40 text-brand-600 dark:text-brand-400 text-xs font-black">
+                <GraduationCap className="w-3.5 h-3.5" />
+                <span>Definição de Objetivo</span>
+              </div>
               <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-                Qual é o seu grande objetivo no ENEM 2026?
+                Qual curso você quer conquistar?
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Essas metas calibrarão o nível de exigência dos seus simulados e o algoritmo de recomendação de matérias.
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                Vamos personalizar sua preparação com base no seu objetivo. Você poderá alterar essa escolha depois.
               </p>
             </div>
 
+            {errorMsg && (
+              <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 block mb-1">
-                  Curso que você deseja prestar:
+                <label className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 block mb-2">
+                  Curso desejado <span className="text-rose-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  value={course}
-                  onChange={(e) => setCourse(e.target.value)}
-                  placeholder="Ex: Medicina, Direito, Engenharia..."
-                  className="w-full text-sm font-bold text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 focus:border-brand-600 focus:outline-none"
-                />
+
+                {/* Barra de busca de cursos */}
+                <div className="relative mb-3">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={courseSearch}
+                    onChange={(e) => setCourseSearch(e.target.value)}
+                    placeholder="Filtrar opções ou buscar curso..."
+                    className="w-full text-xs font-medium text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 focus:border-brand-600 focus:outline-none"
+                  />
+                </div>
+
+                {/* Chips de cursos sugeridos */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {filteredCourses.map((c) => {
+                    const isSelected = (c === 'Outro' && isOther) || (!isOther && course === c);
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => handleSelectCourse(c)}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                          isSelected
+                            ? 'bg-brand-600 text-white border-brand-600 shadow-sm scale-105'
+                            : 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Se escolher 'Outro' ou quiser digitar curso livre */}
+                {isOther && (
+                  <div className="animate-in fade-in space-y-1 pt-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block">
+                      Digite o nome do seu curso:
+                    </label>
+                    <input
+                      type="text"
+                      autoFocus
+                      value={customCourse}
+                      onChange={(e) => {
+                        setCustomCourse(e.target.value);
+                        setErrorMsg(null);
+                      }}
+                      placeholder="Ex: Relações Internacionais, Engenharia de Software..."
+                      className="w-full text-sm font-bold text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-800 border-2 border-brand-500 rounded-2xl px-4 py-3 focus:outline-none"
+                    />
+                  </div>
+                )}
               </div>
 
+              {/* Faculdade / Universidade desejada (Opcional) */}
+              <div>
+                <label className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 block mb-1">
+                  Faculdade ou Universidade dos seus sonhos (Opcional):
+                </label>
+                <div className="relative">
+                  <School className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={targetUniversity}
+                    onChange={(e) => setTargetUniversity(e.target.value)}
+                    placeholder="Ex: USP, UNICAMP, UFRJ, UFMG, ENEM / SISU..."
+                    className="w-full text-xs font-bold text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-3 focus:border-brand-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Meta de nota TRI */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-black uppercase text-slate-700 dark:text-slate-300">
@@ -129,7 +256,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ currentUser, onComplete 
                 <div className="flex justify-between text-[10px] text-slate-400 font-bold mt-1">
                   <span>550 (Básico)</span>
                   <span>700 (Bom)</span>
-                  <span>820 (Excelente)</span>
+                  <span>800 (Excelente)</span>
                   <span>950 (Top 1%)</span>
                 </div>
               </div>
@@ -137,7 +264,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ currentUser, onComplete 
 
             <button
               type="button"
-              onClick={() => setStep(2)}
+              onClick={handleStep1Next}
               className="w-full bg-brand-600 hover:bg-brand-700 text-white font-black text-xs uppercase py-3.5 px-4 rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-[0.99]"
             >
               Próximo: Ritmo e Horários <ArrowRight className="w-4 h-4" />
@@ -153,7 +280,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ currentUser, onComplete 
                 Como será a sua rotina de estudos?
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                O ENEM 2026 PRO montará seu cronograma inteligente de forma realista com o tempo que você realmente dispõe.
+                O ENEM 2026 PRO montará seu cronograma adaptativo de forma realista com a sua disponibilidade.
               </p>
             </div>
 
@@ -215,7 +342,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ currentUser, onComplete 
 
             <div>
               <label className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 block mb-1">
-                Data Oficial Prevista do ENEM 2026:
+                Data Prevista do ENEM 2026:
               </label>
               <input
                 type="date"
@@ -299,4 +426,3 @@ export const Onboarding: React.FC<OnboardingProps> = ({ currentUser, onComplete 
     </div>
   );
 };
-

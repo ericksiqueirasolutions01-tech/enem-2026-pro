@@ -61,6 +61,11 @@ export const MetasEstudos: React.FC<MetasEstudosProps> = ({ onNavigate }) => {
     };
 
     db.saveStudentGoals(updated);
+    db.updateProfile(currentUser.id, {
+      targetCourse,
+      targetUniversity,
+      targetScore,
+    });
     setGoals(updated);
     setIsEditing(false);
     setSavedSuccess(true);

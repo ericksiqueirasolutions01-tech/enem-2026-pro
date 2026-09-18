@@ -11,7 +11,8 @@
     "lint": "tsc --noEmit",
     "test:security": "node scripts/security-audit.js",
     "test:payments": "node scripts/payment-audit.js",
-    "test": "npm run test:security && npm run test:payments && npm run typecheck"
+    "test:onboarding": "node scripts/onboarding-zero-state-audit.js",
+    "test": "npm run test:security && npm run test:payments && npm run test:onboarding && npm run typecheck"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

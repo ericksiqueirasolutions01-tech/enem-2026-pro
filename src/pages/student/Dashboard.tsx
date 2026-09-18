@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { db } from '../../db/storage';
 import { ENEM_CURRICULUM } from '../../db/curriculumData';
-import { User } from '../../types';
+import { User, SimuladoAttempt, Essay, MistakeNotebookItem } from '../../types';
 import {
   Sparkles,
   ArrowRight,
@@ -55,6 +55,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
 
   const stats = db.getStudentDashboardStats(currentUser.id);
   const profile = stats.profile;
+  const attempts: SimuladoAttempt[] = db.getAttempts(currentUser.id).filter((a: SimuladoAttempt) => !!a.finishedAt);
+  const essays: Essay[] = db.getEssays(currentUser.id);
+  const topicMap = db.getTopicStatusMap(currentUser.id);
+  const completedTopicsCount = Object.values(topicMap).filter((s) => s === 'DOMINADO' || s === 'REVISADO').length;
+  const mistakes: MistakeNotebookItem[] = db.getMistakes(currentUser.id).filter((m: MistakeNotebookItem) => !m.isMastered);
 
   // Saudação de acordo com o horário
   const hora = new Date().getHours();
@@ -66,18 +71,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
   const now = new Date();
   const daysUntilExam = Math.max(1, Math.ceil((examDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
 
-  // Dados para o gráfico de evolução TRI
-  const evolutionData = [
-    { semana: 'Sem 1', nota: 640, acerto: 64 },
-    { semana: 'Sem 2', nota: 685, acerto: 68 },
-    { semana: 'Sem 3', nota: 720, acerto: 72 },
-    { semana: 'Sem 4', nota: 742, acerto: 74 },
-  ];
+  // Cálculos dinâmicos oficiais dos 5 Indicadores Pedagógicos
+  const totalCurriculumTopics = 80;
+  const conteudosRate = Math.min(100, Math.round((completedTopicsCount / totalCurriculumTopics) * 100));
+  const questionsCount = stats.totalQuestionsAnswered;
+  const accuracyRate = stats.accuracyRate;
+  const simuladosCount = attempts.length;
+  const triAverage = simuladosCount > 0
+    ? Math.round(attempts.reduce((acc: number, a: SimuladoAttempt) => acc + Math.round(500 + (a.scorePercentage * 4.5)), 0) / simuladosCount)
+    : null;
+  const streakDays = stats.streakDays;
+  const hoursStudied = stats.totalHoursStudied;
+
+  // Minha Jornada - Fases dinâmicas
+  const fase1Percent = Math.min(100, Math.round((completedTopicsCount / 20) * 100));
+  const fase2Percent = fase1Percent < 100 ? 0 : Math.min(100, Math.round((questionsCount / 300) * 100));
+  const fase3Percent = fase2Percent < 100 ? 0 : Math.min(100, Math.round((simuladosCount / 5) * 100));
+
+  // Redação mais recente
+  const lastEssay = essays.length > 0 ? essays[essays.length - 1] : null;
+
+  // Gráfico TRI real (quando houver tentativas suficientes)
+  const evolutionData = attempts.map((att: SimuladoAttempt, idx: number) => ({
+    semana: `Sim ${idx + 1}`,
+    nota: Math.round(500 + (att.scorePercentage * 4.5)),
+    acerto: Math.round((att.correctCount / (att.totalQuestions || 1)) * 100),
+  }));
+
+  const triGrowth = attempts.length >= 2
+    ? Math.round(500 + (attempts[attempts.length - 1].scorePercentage * 4.5)) - Math.round(500 + (attempts[0].scorePercentage * 4.5))
+    : 0;
 
   return (
     <div className="space-y-8 animate-in fade-in pb-16 w-full">
       {/* ========================================================================= */}
-      {/* 6. NOVO TOPO DO ALUNO: JORNADA DE APROVAÇÃO & AÇÕES DIRETAS              */}
+      {/* 6. TOPO DO ALUNO: JORNADA DE APROVAÇÃO & AÇÕES DIRETAS                    */}
       {/* ========================================================================= */}
       <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-2xl relative overflow-hidden">
         {/* Tech glowing spheres */}
@@ -115,14 +143,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
                 {saudacao}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 via-indigo-300 to-emerald-400">{firstName}</span>! 👋
               </h1>
 
-              <p className="text-xs sm:text-sm text-slate-300 font-medium">
-                Objetivo: <strong className="text-white font-bold">{profile?.targetCourse || 'Medicina'}</strong> na{' '}
-                <strong className="text-brand-300 font-bold">{profile?.targetUniversity || 'USP'}</strong>
-              </p>
+              <div className="text-xs sm:text-sm text-slate-300 font-medium flex items-center gap-2 flex-wrap">
+                <span>
+                  Objetivo: <strong className="text-white font-bold">{profile?.targetCourse || 'Não definido'}</strong>
+                  {profile?.targetUniversity ? (
+                    <> na <strong className="text-brand-300 font-bold">{profile.targetUniversity}</strong></>
+                  ) : null}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('perfil')}
+                  className="text-[11px] text-brand-400 hover:text-white underline font-bold cursor-pointer"
+                >
+                  Alterar meta
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* 11. CONTADOR DO ENEM EM DESTAQUE TOTAL (SEM CORTE) */}
+          {/* CONTADOR DO ENEM EM DESTAQUE */}
           <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end gap-3 shrink-0">
             <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-amber-500/10 border-2 border-amber-400/40 text-amber-300 shadow-sm shrink-0 whitespace-nowrap">
               <div className="w-9 h-9 rounded-xl bg-amber-400/20 flex items-center justify-center text-amber-300 text-lg">
@@ -138,30 +177,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
               </div>
             </div>
 
-            {/* 3 Botões de Ação Primários Solicitados na Seção 6 */}
-            <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full lg:w-auto">
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => onNavigate('materias')}
-                className="flex-1 sm:flex-initial px-4 py-3 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-brand-500/30 transition-transform active:scale-95 cursor-pointer"
+                onClick={() => onNavigate('plano')}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <Play className="w-3.5 h-3.5 fill-slate-950" />
-                <span>Continuar Estudando</span>
+                <span>Plano Semanal</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
-
               <button
-                onClick={() => onNavigate('simulados')}
-                className="flex-1 sm:flex-initial px-3.5 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                onClick={() => setAiModalOpen(true)}
+                className="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 transition-transform active:scale-95 shadow-md shadow-brand-500/25 cursor-pointer"
               >
-                <FileCheck2 className="w-3.5 h-3.5 text-brand-300" />
-                <span>Fazer Simulado</span>
-              </button>
-
-              <button
-                onClick={() => onNavigate('redacao')}
-                className="flex-1 sm:flex-initial px-3.5 py-3 rounded-xl bg-purple-600/70 hover:bg-purple-600 text-white border border-purple-400/30 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <PenTool className="w-3.5 h-3.5" />
-                <span>Enviar Redação</span>
+                <Bot className="w-4 h-4" />
+                <span>Mentor IA</span>
               </button>
             </div>
           </div>
@@ -169,12 +198,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
       </div>
 
       {/* ========================================================================= */}
-      {/* 7. BLOCO 1: MINHA JORNADA (EVOLUÇÃO POR FASES)                            */}
+      {/* BLOCO: MINHA JORNADA (FASES DINÂMICAS)                                    */}
       {/* ========================================================================= */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div className="flex items-center justify-between">
           <div>
-            <span className="text-[10px] font-black uppercase text-brand-600 tracking-wider">Trilha Estruturada</span>
+            <span className="text-[10px] font-black uppercase text-brand-600 dark:text-brand-400 tracking-wider">
+              Evolução Pedagógica
+            </span>
             <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
               <Compass className="w-5 h-5 text-brand-600" />
               MINHA JORNADA
@@ -186,14 +217,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
-          {/* FASE 1 */}
-          <div className="p-5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border-2 border-emerald-500/40 space-y-2.5 relative">
+          {/* FASE 1: Fundamentos */}
+          <div className={`p-5 rounded-2xl border-2 space-y-2.5 relative transition-all ${
+            fase1Percent >= 100
+              ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-500/40'
+              : fase1Percent > 0
+              ? 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-500/40'
+              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
+          }`}>
             <div className="flex items-center justify-between">
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider">
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                fase1Percent >= 100 ? 'bg-emerald-600 text-white' : fase1Percent > 0 ? 'bg-amber-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+              }`}>
                 FASE 1
               </span>
-              <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-600 dark:text-emerald-400">
-                ✅ Concluído
+              <span className="inline-flex items-center gap-1 text-xs font-black">
+                {fase1Percent >= 100 ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">✅ Concluído</span>
+                ) : fase1Percent > 0 ? (
+                  <span className="text-amber-600 dark:text-amber-400">🟡 {fase1Percent}% Em andamento</span>
+                ) : (
+                  <span className="text-slate-400">⚪ 0% Não iniciado</span>
+                )}
               </span>
             </div>
             <h3 className="text-base font-black text-slate-900 dark:text-white">
@@ -202,19 +247,36 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
               Conceitos de base em todas as áreas, cronograma semanal e diagnóstico pedagógico inicial.
             </p>
-            <div className="w-full bg-emerald-200 dark:bg-emerald-900/60 h-2 rounded-full overflow-hidden">
-              <div className="bg-emerald-500 h-full rounded-full w-full" />
+            <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${fase1Percent >= 100 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                style={{ width: `${fase1Percent}%` }}
+              />
             </div>
           </div>
 
-          {/* FASE 2 */}
-          <div className="p-5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border-2 border-amber-500/40 space-y-2.5 relative">
+          {/* FASE 2: Aprimoramento */}
+          <div className={`p-5 rounded-2xl border-2 space-y-2.5 relative transition-all ${
+            fase2Percent >= 100
+              ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-500/40'
+              : fase2Percent > 0
+              ? 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-500/40'
+              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
+          }`}>
             <div className="flex items-center justify-between">
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-600 text-white text-[10px] font-black uppercase tracking-wider">
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                fase2Percent >= 100 ? 'bg-emerald-600 text-white' : fase2Percent > 0 ? 'bg-amber-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+              }`}>
                 FASE 2
               </span>
-              <span className="inline-flex items-center gap-1 text-xs font-black text-amber-600 dark:text-amber-400">
-                🟡 Em andamento
+              <span className="inline-flex items-center gap-1 text-xs font-black">
+                {fase2Percent >= 100 ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">✅ Concluído</span>
+                ) : fase2Percent > 0 ? (
+                  <span className="text-amber-600 dark:text-amber-400">🟡 {fase2Percent}% Em andamento</span>
+                ) : (
+                  <span className="text-slate-400">⚪ {fase1Percent < 100 ? 'Bloqueado' : '0%'}</span>
+                )}
               </span>
             </div>
             <h3 className="text-base font-black text-slate-900 dark:text-white">
@@ -223,19 +285,36 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
               Resolução de questões médias e difíceis, consolidação de TRI e treino sistemático de Redação.
             </p>
-            <div className="w-full bg-amber-200 dark:bg-amber-900/60 h-2 rounded-full overflow-hidden">
-              <div className="bg-amber-500 h-full rounded-full w-[65%]" />
+            <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${fase2Percent >= 100 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                style={{ width: `${fase2Percent}%` }}
+              />
             </div>
           </div>
 
-          {/* FASE 3 */}
-          <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 space-y-2.5 relative">
+          {/* FASE 3: Simulados Finais */}
+          <div className={`p-5 rounded-2xl border-2 space-y-2.5 relative transition-all ${
+            fase3Percent >= 100
+              ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-500/40'
+              : fase3Percent > 0
+              ? 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-500/40'
+              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
+          }`}>
             <div className="flex items-center justify-between">
-              <span className="px-2.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-black uppercase tracking-wider">
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                fase3Percent >= 100 ? 'bg-emerald-600 text-white' : fase3Percent > 0 ? 'bg-amber-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+              }`}>
                 FASE 3
               </span>
               <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-400">
-                ⚪ Próximo
+                {fase3Percent >= 100 ? (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-black">✅ Concluído</span>
+                ) : fase3Percent > 0 ? (
+                  <span className="text-amber-600 dark:text-amber-400 font-black">🟡 {fase3Percent}% Em andamento</span>
+                ) : (
+                  <span>⚪ Próximo</span>
+                )}
               </span>
             </div>
             <h3 className="text-base font-black text-slate-900 dark:text-white">
@@ -245,14 +324,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
               Maratona de provas na íntegra com cronômetro real de 5h e revisão intensiva dos temas de maior peso.
             </p>
             <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-              <div className="bg-slate-400 h-full rounded-full w-0" />
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${fase3Percent >= 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                style={{ width: `${fase3Percent}%` }}
+              />
             </div>
           </div>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* 7. BLOCO 2: MEU DESEMPENHO (OS 5 INDICADORES PEDAGÓGICOS OFICIAIS)         */}
+      {/* 7. MEU DESEMPENHO (OS 5 INDICADORES PEDAGÓGICOS OFICIAIS — GATES 5 & 6)   */}
       {/* ========================================================================= */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -273,164 +355,237 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
           {/* Indicador 1: Conteúdos Concluídos */}
-          <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2.5">
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2.5 flex flex-col justify-between">
             <div className="flex items-center justify-between text-slate-400 text-[10px] font-black uppercase">
-              <span>Conteúdos Concluídos</span>
+              <span>Conteúdos</span>
               <BookOpen className="w-4 h-4 text-brand-600" />
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono">
-              65%
+            <div>
+              <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono">
+                {conteudosRate}%
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden mt-1.5">
+                <div className="bg-brand-600 h-full rounded-full transition-all duration-500" style={{ width: `${conteudosRate}%` }} />
+              </div>
             </div>
-            <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-              <div className="bg-brand-600 h-full rounded-full" style={{ width: '65%' }} />
-            </div>
-            <span className="text-[10px] text-slate-500 font-bold block">
-              15 disciplinas em andamento
+            <span className="text-[10px] text-slate-500 font-bold block leading-tight">
+              {completedTopicsCount === 0
+                ? 'Conclua seu 1º conteúdo para acompanhar'
+                : `${completedTopicsCount} tópicos concluídos`}
             </span>
           </div>
 
           {/* Indicador 2: Questões Resolvidas */}
-          <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2.5">
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2.5 flex flex-col justify-between">
             <div className="flex items-center justify-between text-slate-400 text-[10px] font-black uppercase">
-              <span>Questões Resolvidas</span>
+              <span>Questões</span>
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono">
-              1.250
+            <div>
+              <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono">
+                {questionsCount.toLocaleString('pt-BR')}
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden mt-1.5">
+                <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: `${accuracyRate}%` }} />
+              </div>
             </div>
-            <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-              <div className="bg-emerald-500 h-full rounded-full" style={{ width: '78%' }} />
-            </div>
-            <span className="text-[10px] text-emerald-600 font-bold block">
-              78% taxa de acertos
+            <span className="text-[10px] text-emerald-600 font-bold block leading-tight">
+              {questionsCount === 0 ? '0% taxa de acertos' : `${accuracyRate}% taxa de acertos`}
             </span>
           </div>
 
           {/* Indicador 3: Média nos Simulados */}
-          <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2.5">
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2.5 flex flex-col justify-between">
             <div className="flex items-center justify-between text-slate-400 text-[10px] font-black uppercase">
-              <span>Média nos Simulados</span>
+              <span>Simulados</span>
               <Target className="w-4 h-4 text-indigo-600" />
             </div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono">
-                742
-              </span>
-              <span className="text-xs font-bold text-indigo-500">TRI</span>
+            <div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono">
+                  {triAverage !== null ? triAverage : '--'}
+                </span>
+                <span className="text-xs font-bold text-indigo-500">TRI</span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden mt-1.5">
+                <div
+                  className="bg-indigo-600 h-full rounded-full transition-all duration-500"
+                  style={{ width: `${triAverage !== null ? Math.min(100, Math.round((triAverage / 1000) * 100)) : 0}%` }}
+                />
+              </div>
             </div>
-            <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-              <div className="bg-indigo-600 h-full rounded-full" style={{ width: '74%' }} />
-            </div>
-            <span className="text-[10px] text-indigo-500 font-bold block">
-              +45 pts no último simulado
+            <span className="text-[10px] text-indigo-500 font-bold block leading-tight">
+              {simuladosCount === 0
+                ? 'Nenhum simulado realizado ainda'
+                : `${simuladosCount} simulado${simuladosCount > 1 ? 's' : ''} concluído${simuladosCount > 1 ? 's' : ''}`}
             </span>
           </div>
 
           {/* Indicador 4: Sequência de Estudos */}
-          <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2.5">
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2.5 flex flex-col justify-between">
             <div className="flex items-center justify-between text-slate-400 text-[10px] font-black uppercase">
-              <span>Sequência de Estudos</span>
+              <span>Sequência</span>
               <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
             </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-black text-orange-500 font-mono">
-                15
-              </span>
-              <span className="text-xs font-bold text-orange-500">dias 🔥</span>
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-black text-orange-500 font-mono">
+                  {streakDays}
+                </span>
+                <span className="text-xs font-bold text-orange-500">
+                  {streakDays === 0 ? 'dias' : 'dias 🔥'}
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden mt-1.5">
+                <div
+                  className="bg-orange-500 h-full rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(100, streakDays * 10)}%` }}
+                />
+              </div>
             </div>
-            <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-              <div className="bg-orange-500 h-full rounded-full" style={{ width: '85%' }} />
-            </div>
-            <span className="text-[10px] text-slate-500 font-bold block">
-              Ofensiva diária mantida
+            <span className="text-[10px] text-slate-500 font-bold block leading-tight">
+              {streakDays === 0 ? 'Comece hoje sua sequência' : 'Ofensiva diária mantida'}
             </span>
           </div>
 
           {/* Indicador 5: Horas Estudadas */}
-          <div className="col-span-2 sm:col-span-1 bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2.5">
+          <div className="col-span-2 sm:col-span-1 bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2.5 flex flex-col justify-between">
             <div className="flex items-center justify-between text-slate-400 text-[10px] font-black uppercase">
-              <span>Horas Estudadas</span>
+              <span>Horas de Estudo</span>
               <Clock className="w-4 h-4 text-purple-600" />
             </div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono">
-                48h
+            <div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono">
+                  {hoursStudied}h
+                </span>
+                <span className="text-xs font-bold text-slate-400">focadas</span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden mt-1.5">
+                <div
+                  className="bg-purple-600 h-full rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(100, Math.round((hoursStudied / ((profile?.studyHoursPerDay || 4) * 7)) * 100))}%` }}
+                />
+              </div>
+            </div>
+            <span className="text-[10px] text-purple-600 font-bold block leading-tight">
+              {hoursStudied === 0
+                ? 'Seu tempo aparecerá aqui'
+                : `Meta: ${profile?.studyHoursPerDay || 4}h diárias`}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 8. RECOMENDAÇÃO INTELIGENTE ADAPTATIVA (GATE 6)                            */}
+      {/* ========================================================================= */}
+      {questionsCount === 0 && simuladosCount === 0 ? (
+        <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-brand-500/15 via-indigo-500/10 to-emerald-500/10 border-2 border-brand-500/30 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="space-y-2 max-w-2xl">
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-0.5 rounded-full bg-brand-500/20 text-brand-800 dark:text-brand-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border border-brand-400/30">
+                <Sparkles className="w-3.5 h-3.5 text-brand-600" />
+                BEM-VINDO À SUA JORNADA
               </span>
-              <span className="text-xs font-bold text-slate-400">focadas</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                Passo Inicial Recomendado
+              </span>
             </div>
-            <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-              <div className="bg-purple-600 h-full rounded-full" style={{ width: '75%' }} />
-            </div>
-            <span className="text-[10px] text-purple-600 font-bold block">
-              Meta: 4h diárias
-            </span>
-          </div>
-        </div>
-      </div>
 
-      {/* ========================================================================= */}
-      {/* 8. ÁREA "RECOMENDAÇÃO DE HOJE" (CARD INTELIGENTE COM MOTIVO PEDAGÓGICO)   */}
-      {/* ========================================================================= */}
-      <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-indigo-500/10 border-2 border-amber-500/30 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5">
-        <div className="space-y-2 max-w-2xl">
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border border-amber-400/30">
-              <AlertOctagon className="w-3.5 h-3.5 text-amber-600" />
-              RECOMENDAÇÃO DE ESTUDO
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
-              Análise baseada nos seus simulados recentes
-            </span>
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+              Sua preparação para o ENEM 2026 começa hoje!
+            </h3>
+
+            <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+              Para calibrarmos seu algoritmo adaptativo de TRI e suas recomendações personalizadas, faça o seu <strong>Simulado Diagnóstico</strong> ou explore as matérias de base na Biblioteca.
+            </p>
           </div>
 
-          <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-            "Você precisa revisar Física"
-          </h3>
+          <div className="flex flex-col sm:flex-row gap-2.5 shrink-0">
+            <button
+              onClick={() => onNavigate('simulados')}
+              className="px-5 py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md shadow-brand-600/25 transition-transform active:scale-95 cursor-pointer"
+            >
+              <span>Fazer Simulado Diagnóstico</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
 
-          <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-            Motivo: <strong className="text-amber-700 dark:text-amber-300 font-bold">"Baixo desempenho em Circuitos Elétricos."</strong> Recomendamos revisar a teoria de Associação de Resistores e Lei de Ohm antes do próximo simulado.
-          </p>
+            <button
+              onClick={() => onNavigate('materias')}
+              className="px-5 py-3.5 rounded-2xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+            >
+              <BookOpen className="w-4 h-4 text-brand-500" />
+              <span>Explorar Matérias</span>
+            </button>
+          </div>
         </div>
+      ) : (
+        <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-indigo-500/10 border-2 border-amber-500/30 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="space-y-2 max-w-2xl">
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border border-amber-400/30">
+                <AlertOctagon className="w-3.5 h-3.5 text-amber-600" />
+                RECOMENDAÇÃO DE ESTUDO
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                Análise baseada nos seus resultados reais
+              </span>
+            </div>
 
-        <div className="flex flex-col sm:flex-row gap-2.5 shrink-0">
-          <button
-            onClick={() => onNavigate('questoes')}
-            className="px-5 py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md shadow-amber-600/25 transition-transform active:scale-95 cursor-pointer"
-          >
-            <span>Começar Revisão</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+              {mistakes.length > 0
+                ? `Você precisa revisar: ${mistakes[0].question.discipline}`
+                : `Foque em: ${stats.weakArea?.name || 'suas matérias de maior peso'}`}
+            </h3>
 
-          <button
-            onClick={() => setAiModalOpen(true)}
-            className="px-5 py-3.5 rounded-2xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs cursor-pointer"
-          >
-            <Bot className="w-4 h-4 text-purple-500" />
-            <span>Pedir Ajuda à IA</span>
-          </button>
+            <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+              {mistakes.length > 0
+                ? `Motivo: Identificamos erros recentes em "${mistakes[0].question.topic}". Recomendamos revisar a teoria e refazer questões similares.`
+                : `Continue praticando questões e simulados para consolidar sua proficiência TRI no ENEM 2026.`}
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2.5 shrink-0">
+            <button
+              onClick={() => onNavigate('questoes')}
+              className="px-5 py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md shadow-amber-600/25 transition-transform active:scale-95 cursor-pointer"
+            >
+              <span>Começar Revisão</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => setAiModalOpen(true)}
+              className="px-5 py-3.5 rounded-2xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+            >
+              <Bot className="w-4 h-4 text-purple-500" />
+              <span>Pedir Ajuda à IA</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ========================================================================= */}
-      {/* 13 & 14. DESTAQUES: PRÓXIMO SIMULADO RECOMENDADO & MINHA REDAÇÃO         */}
+      {/* DESTAQUES: PRÓXIMO SIMULADO & MINHA REDAÇÃO                               */}
       {/* ========================================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 13. ÁREA DE SIMULADOS (DESTAQUE MAIOR) */}
+        {/* ÁREA DE SIMULADOS */}
         <div className="bg-white dark:bg-slate-900 p-6 sm:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-5">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-black uppercase tracking-wider border border-indigo-200 dark:border-indigo-800">
                 Próximo Simulado Recomendado
               </span>
-              <span className="text-xs font-bold text-slate-400">⏱️ Neste Sábado, 13:00</span>
+              <span className="text-xs font-bold text-slate-400">⏱️ Prova Completa</span>
             </div>
 
             <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-              SIMULADO ENEM 2026
+              SIMULADO ENEM 2026 — DIA 1
             </h3>
 
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-              90 questões elaboradas no padrão do edital oficial, cobrindo Linguagens, Humanas e Redação. Inclui cronômetro de 5 horas e correção automática pela Teoria de Resposta ao Item (TRI).
+              90 questões no padrão oficial do edital, cobrindo Linguagens, Ciências Humanas e Redação. Inclui cronômetro oficial de 5 horas e calibração por Teoria de Resposta ao Item (TRI).
             </p>
 
             <div className="flex items-center gap-3 text-xs font-bold text-slate-600 dark:text-slate-300 pt-1">
@@ -451,14 +606,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
           </button>
         </div>
 
-        {/* 14. ÁREA DE REDAÇÃO (DESTAQUE COM NOTA 920 E COMPETÊNCIAS C1-C5) */}
+        {/* ÁREA DE REDAÇÃO (ESTADO ZERO ELEGANTE QUANDO NÃO HOUVER REDAÇÃO) */}
         <div className="bg-white dark:bg-slate-900 p-6 sm:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-5">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 text-[10px] font-black uppercase tracking-wider border border-purple-200 dark:border-purple-800">
                 MINHA REDAÇÃO
               </span>
-              <span className="text-xs font-mono font-bold text-slate-400">Última redação enviada</span>
+              <span className="text-xs font-mono font-bold text-slate-400">
+                {lastEssay ? 'Última redação enviada' : 'Nenhuma redação ainda'}
+              </span>
             </div>
 
             <div className="flex items-baseline justify-between">
@@ -466,45 +623,61 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
                 Nota Estimada:
               </h3>
               <span className="text-3xl sm:text-4xl font-black text-purple-600 dark:text-purple-400 font-mono">
-                920 pts
+                {lastEssay?.correction?.totalScore ? `${lastEssay.correction.totalScore} pts` : '-- pts'}
               </span>
             </div>
 
-            {/* Grid das 5 Competências Solicitadas */}
+            {/* Grid das 5 Competências */}
             <div className="grid grid-cols-5 gap-2 pt-1 text-center">
               <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
                 <span className="block text-[10px] font-black text-slate-400 uppercase">C1</span>
-                <span className="text-sm font-black text-slate-900 dark:text-white font-mono">180</span>
+                <span className="text-sm font-black text-slate-900 dark:text-white font-mono">
+                  {lastEssay?.correction?.competencies?.find((c) => c.number === 1)?.score ?? '--'}
+                </span>
                 <span className="text-[9px] text-slate-500 block truncate">Norma</span>
               </div>
               <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
                 <span className="block text-[10px] font-black text-emerald-500 uppercase">C2</span>
-                <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">200</span>
+                <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                  {lastEssay?.correction?.competencies?.find((c) => c.number === 2)?.score ?? '--'}
+                </span>
                 <span className="text-[9px] text-slate-500 block truncate">Tema</span>
               </div>
               <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
                 <span className="block text-[10px] font-black text-slate-400 uppercase">C3</span>
-                <span className="text-sm font-black text-slate-900 dark:text-white font-mono">180</span>
+                <span className="text-sm font-black text-slate-900 dark:text-white font-mono">
+                  {lastEssay?.correction?.competencies?.find((c) => c.number === 3)?.score ?? '--'}
+                </span>
                 <span className="text-[9px] text-slate-500 block truncate">Argum.</span>
               </div>
               <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
                 <span className="block text-[10px] font-black text-emerald-500 uppercase">C4</span>
-                <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">200</span>
+                <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                  {lastEssay?.correction?.competencies?.find((c) => c.number === 4)?.score ?? '--'}
+                </span>
                 <span className="text-[9px] text-slate-500 block truncate">Coesão</span>
               </div>
               <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
                 <span className="block text-[10px] font-black text-amber-500 uppercase">C5</span>
-                <span className="text-sm font-black text-amber-600 dark:text-amber-400 font-mono">160</span>
+                <span className="text-sm font-black text-amber-600 dark:text-amber-400 font-mono">
+                  {lastEssay?.correction?.competencies?.find((c) => c.number === 5)?.score ?? '--'}
+                </span>
                 <span className="text-[9px] text-slate-500 block truncate">Interv.</span>
               </div>
             </div>
+
+            {!lastEssay && (
+              <p className="text-[11px] text-slate-400 font-medium">
+                Você ainda não enviou nenhuma redação. Envie seu primeiro texto para receber a correção nota 1000 com análise detalhada da IA.
+              </p>
+            )}
           </div>
 
           <button
             onClick={() => onNavigate('redacao')}
             className="w-full py-3.5 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30 transition-transform active:scale-95 cursor-pointer"
           >
-            <span>Nova Redação</span>
+            <span>{lastEssay ? 'Nova Redação' : 'Enviar Primeira Redação'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -521,7 +694,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
                 <BookOpen className="w-3.5 h-3.5" />
                 Pastas de Matérias do ENEM 2026
               </span>
-              <span className="px-3 py-1 rounded-full bg-white/10 text-slate-300 text-xs font-bold border border-white/10">
+              <span className="px-3.5 py-1 rounded-full bg-white/10 text-slate-300 text-xs font-bold border border-white/10">
                 Acervo Completo & Leitor Integrado
               </span>
             </div>
@@ -570,7 +743,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
         </div>
       </div>
 
-      {/* Gráfico de Evolução TRI */}
+      {/* ========================================================================= */}
+      {/* GRÁFICO DE EVOLUÇÃO TRI (REAL OU ESTADO ZERO ELEGANTE — GATES 5 & 6)      */}
+      {/* ========================================================================= */}
       <div className="bg-white dark:bg-slate-900 p-6 sm:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -579,47 +754,74 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onNavigate })
               Evolução da Nota TRI nos Simulados
             </h3>
             <p className="text-xs text-slate-500">
-              Progresso semanal calibrado com base na proficiência real
+              Progresso calibrado com base na proficiência real do estudante
             </p>
           </div>
-          <span className="text-xs font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 px-3 py-1 rounded-xl border border-emerald-200 dark:border-emerald-800">
-            +102 pts neste ciclo
-          </span>
+          {attempts.length >= 2 && (
+            <span className="text-xs font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 px-3 py-1 rounded-xl border border-emerald-200 dark:border-emerald-800">
+              {triGrowth >= 0 ? `+${triGrowth}` : `${triGrowth}`} pts neste ciclo
+            </span>
+          )}
         </div>
 
-        <div className="h-64 w-full pt-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={evolutionData}>
-              <defs>
-                <linearGradient id="colorNota" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#0d77f8" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#0d77f8" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.4} />
-              <XAxis dataKey="semana" stroke="#94a3b8" fontSize={11} />
-              <YAxis domain={[550, 850]} stroke="#94a3b8" fontSize={11} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#0f172a',
-                  borderColor: '#334155',
-                  borderRadius: '12px',
-                  color: '#fff',
-                  fontSize: '12px',
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="nota"
-                name="Nota Média TRI"
-                stroke="#0d77f8"
-                strokeWidth={3}
-                fillOpacity={1}
-                fill="url(#colorNota)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        {attempts.length >= 2 ? (
+          <div className="h-64 w-full pt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={evolutionData}>
+                <defs>
+                  <linearGradient id="colorNota" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0d77f8" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#0d77f8" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.4} />
+                <XAxis dataKey="semana" stroke="#94a3b8" fontSize={11} />
+                <YAxis domain={[500, 950]} stroke="#94a3b8" fontSize={11} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#0f172a',
+                    borderColor: '#334155',
+                    borderRadius: '12px',
+                    color: '#fff',
+                    fontSize: '12px',
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="nota"
+                  name="Nota Média TRI"
+                  stroke="#0d77f8"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#colorNota)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="p-8 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700/70 text-center space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-brand-50 dark:bg-brand-950/50 text-brand-600 dark:text-brand-400 flex items-center justify-center mx-auto text-xl">
+              📈
+            </div>
+            <div className="space-y-1 max-w-md mx-auto">
+              <h4 className="text-sm font-black text-slate-800 dark:text-slate-200">
+                Curva de Evolução TRI em Calibração
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {attempts.length === 1
+                  ? 'Você concluiu seu 1º simulado! Faça mais um simulado para começar a comparar sua curva de evolução.'
+                  : 'Nenhum simulado realizado ainda. Faça seu primeiro simulado quando estiver pronto para ver o gráfico de proficiência TRI.'}
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigate('simulados')}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-black uppercase tracking-wider transition-colors cursor-pointer"
+            >
+              <span>Ver Simulados Disponíveis</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Modal do Assistente de IA */}

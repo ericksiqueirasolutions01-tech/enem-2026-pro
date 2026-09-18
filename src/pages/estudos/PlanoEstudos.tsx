@@ -39,7 +39,7 @@ export const PlanoEstudos: React.FC<PlanoEstudosProps> = ({ onNavigate }) => {
     'Química',
     'Redação',
   ]);
-  const [targetCourse, setTargetCourse] = useState(profile?.targetCourse || 'Medicina');
+  const [targetCourse, setTargetCourse] = useState(profile?.targetCourse || '');
 
   const allDisciplines = [
     'Matemática',
@@ -113,7 +113,7 @@ export const PlanoEstudos: React.FC<PlanoEstudosProps> = ({ onNavigate }) => {
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
-            Calibrado para <strong>{targetCourse}</strong> com rotina de <strong>{dailyHours}h por dia</strong>. Reforço automático nas matérias de maior peso e revisão espaçada.
+            Calibrado para <strong>{targetCourse || 'seu objetivo'}</strong> com rotina de <strong>{dailyHours}h por dia</strong>. Reforço automático nas matérias de maior peso e revisão espaçada.
           </p>
         </div>
 

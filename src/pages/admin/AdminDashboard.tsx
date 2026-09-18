@@ -114,6 +114,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
   const [cMaxUses, setCMaxUses] = useState<string>('');
   const [cExpiresAt, setCExpiresAt] = useState<string>('');
 
+  // Estados para GATE 12: Zerar Jornada do Aluno
+  const [resetModalStudent, setResetModalStudent] = useState<User | null>(null);
+  const [resetConfirmWord, setResetConfirmWord] = useState('');
+  const [resetReason, setResetReason] = useState('');
+  const [resetModalError, setResetModalError] = useState<string | null>(null);
+
+  const handleExecuteResetJourney = () => {
+    if (!resetModalStudent) return;
+    if (resetConfirmWord.trim() !== 'ZERAR') {
+      setResetModalError('Digite exatamente a palavra ZERAR para confirmar.');
+      return;
+    }
+    if (!resetReason.trim()) {
+      setResetModalError('Informe o motivo ou justificativa para zerar a jornada.');
+      return;
+    }
+
+    const res = db.resetStudentJourney(resetModalStudent.id, resetReason.trim(), currentUser);
+    if (res.success) {
+      setProfiles(db.getProfiles());
+      setAdminToast(`Jornada pedagógica de ${resetModalStudent.name} zerada com sucesso.`);
+      setTimeout(() => setAdminToast(null), 4000);
+      setResetModalStudent(null);
+      setResetConfirmWord('');
+      setResetReason('');
+      setResetModalError(null);
+    } else {
+      setResetModalError(res.error || 'Falha ao processar o reset da jornada.');
+    }
+  };
+
   const handleSaveCoupon = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanCode = cCode.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
@@ -2430,7 +2461,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
                     <div>
                       <span className="text-[10px] text-slate-400 block">Objetivo</span>
                       <span className="font-bold text-slate-800 dark:text-slate-200">
-                        {prof?.targetCourse || 'Medicina'} ({prof?.targetUniversity || 'USP'})
+                        {prof?.targetCourse || 'Não informado'} ({prof?.targetUniversity || 'Não informada'})
                       </span>
                     </div>
 
@@ -2444,8 +2475,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
                     <div>
                       <span className="text-[10px] text-slate-400 block">Nível & XP</span>
                       <span className="font-bold text-amber-600 dark:text-amber-400">
-                        Nvl {prof?.level || 1} • {prof?.xp || 100} XP
+                        Nvl {prof?.level || 1} • {prof?.xp ?? 0} XP
                       </span>
+                    </div>
+
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setResetModalStudent(st);
+                          setResetConfirmWord('');
+                          setResetReason('');
+                          setResetModalError(null);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[11px] font-bold transition-colors cursor-pointer"
+                        title="Zerar apenas histórico de questões, simulados e horas do aluno"
+                      >
+                        Zerar Jornada
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -3427,6 +3474,94 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL GATE 12: ZERAR JORNADA DO ALUNO */}
+      {resetModalStudent && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 animate-in fade-in">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-950/60 flex items-center justify-center text-xl">
+                ⚠️
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                  Zerar Jornada do Aluno
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Ação administrativa de segurança com registro de auditoria
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 space-y-1.5 leading-relaxed">
+              <p><strong>Aluno:</strong> {resetModalStudent.name} ({resetModalStudent.email})</p>
+              <p>
+                <strong>O que será zerado:</strong> Simulados realizados, redações enviadas, histórico de erros, horas estudadas e ofensiva (streak).
+              </p>
+              <p className="text-emerald-700 dark:text-emerald-300">
+                <strong>O que será preservado:</strong> Conta do usuário, acesso ativo, pagamentos e status APROVADO.
+              </p>
+            </div>
+
+            {resetModalError && (
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-xl text-xs font-bold">
+                {resetModalError}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Motivo ou Justificativa: <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={resetReason}
+                  onChange={(e) => {
+                    setResetReason(e.target.value);
+                    setResetModalError(null);
+                  }}
+                  placeholder="Ex: Aluno solicitou reinício de preparação"
+                  className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:border-rose-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Digite <strong className="text-rose-600">ZERAR</strong> para confirmar: <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={resetConfirmWord}
+                  onChange={(e) => {
+                    setResetConfirmWord(e.target.value);
+                    setResetModalError(null);
+                  }}
+                  placeholder="ZERAR"
+                  className="w-full text-xs font-mono font-bold px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:border-rose-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setResetModalStudent(null)}
+                className="flex-1 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteResetJourney}
+                className="flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-rose-600/30 cursor-pointer"
+              >
+                Confirmar e Zerar
+              </button>
+            </div>
           </div>
         </div>
       )}

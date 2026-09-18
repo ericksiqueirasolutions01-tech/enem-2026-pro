@@ -64,6 +64,7 @@ const STORAGE_KEYS = {
   MATERIAL_PROGRESS: 'enem2026_material_progress_v3',
   CUSTOM_LIBRARY_MATERIALS: 'enem2026_custom_library_materials_v3',
   COUPONS: 'enem2026_coupons_v3',
+  AUDIT_LOGS: 'enem2026_audit_logs_v3',
 };
 
 export const DEFAULT_UNIVERSAL_COUPONS: Coupon[] = [
@@ -247,7 +248,7 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
       const demoGoals: StudentGoals = {
         id: 'goals-demo',
         userId: 'demo-student-01',
-        targetCourse: 'Medicina',
+        targetCourse: 'Medicina (Demonstração)',
         targetUniversity: 'USP / UNICAMP / SISU',
         targetScore: 820,
         weeklyQuestionsGoal: 200,
@@ -412,17 +413,17 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
           const newProfile: StudentProfile = {
             id: `prof-${Date.now()}`,
             userId: newUserId,
-            targetCourse: 'Medicina / Geral',
-            targetUniversity: 'ENEM / SISU',
+            targetCourse: '',
+            targetUniversity: '',
             targetScore: 800,
             studyHoursPerDay: 4,
             studyDaysPerWeek: 5,
             difficultSubjects: [],
             examDate: '2026-11-08',
-            onboardingCompleted: true,
-            streakDays: 1,
-            lastStudyDate: new Date().toISOString().split('T')[0],
-            xp: 100,
+            onboardingCompleted: false,
+            streakDays: 0,
+            lastStudyDate: '',
+            xp: 0,
             level: 1,
           };
           this.set(STORAGE_KEYS.PROFILES, [...profiles, newProfile]);
@@ -447,29 +448,26 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
       const updatedList = users.map((u) => (u.id === targetUser!.id ? { ...targetUser! } : u));
       this.set(STORAGE_KEYS.USERS, updatedList);
 
-      // Garante que o perfil do aluno exista com onboardingCompleted: true
+      // Garante que o perfil do aluno exista (sem forçar Medicina ou onboarding)
       const profiles = this.get<StudentProfile[]>(STORAGE_KEYS.PROFILES, []);
       const existingProfile = profiles.find((p) => p.userId === targetUser!.id);
       if (!existingProfile) {
         profiles.push({
           id: `prof-${Date.now()}`,
           userId: targetUser.id,
-          targetCourse: 'Medicina / Geral',
-          targetUniversity: 'ENEM / SISU',
+          targetCourse: '',
+          targetUniversity: '',
           targetScore: 800,
           studyHoursPerDay: 4,
           studyDaysPerWeek: 5,
           difficultSubjects: [],
           examDate: '2026-11-08',
-          onboardingCompleted: true,
-          streakDays: 1,
-          lastStudyDate: new Date().toISOString().split('T')[0],
-          xp: 100,
+          onboardingCompleted: false,
+          streakDays: 0,
+          lastStudyDate: '',
+          xp: 0,
           level: 1,
         });
-        this.set(STORAGE_KEYS.PROFILES, profiles);
-      } else if (!existingProfile.onboardingCompleted) {
-        existingProfile.onboardingCompleted = true;
         this.set(STORAGE_KEYS.PROFILES, profiles);
       }
 
@@ -576,16 +574,16 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
       state: data.state?.trim() || undefined,
       city: data.city?.trim() || undefined,
       school: data.school,
-      targetCourse: data.targetCourse || (data.objective === 'ETEC' ? 'Técnico em Desenvolvimento' : 'Medicina / Geral'),
-      targetUniversity: data.targetUniversity || (data.objective === 'ETEC' ? 'ETEC / CPS' : 'ENEM / SISU'),
+      targetCourse: data.targetCourse || '',
+      targetUniversity: data.targetUniversity || '',
       targetScore: data.targetScore || 800,
       studyHoursPerDay: 4,
       studyDaysPerWeek: 5,
       difficultSubjects: [],
       examDate: '2026-11-08',
-      onboardingCompleted: true,
+      onboardingCompleted: false,
       streakDays: 0,
-      lastStudyDate: new Date().toISOString().split('T')[0],
+      lastStudyDate: '',
       xp: 0,
       level: 1,
     };
@@ -667,6 +665,7 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
     userId: string,
     data: {
       targetCourse: string;
+      targetUniversity?: string;
       targetScore: number;
       studyHoursPerDay: number;
       studyDaysPerWeek: number;
@@ -674,10 +673,24 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
       examDate?: string;
     }
   ): void {
+    const nowIso = new Date().toISOString();
     this.updateProfile(userId, {
       ...data,
       onboardingCompleted: true,
+      onboardingCompletedAt: nowIso,
     });
+
+    // Sincroniza também as metas do estudante (StudentGoals)
+    const goals = this.getStudentGoals(userId);
+    this.saveStudentGoals({
+      ...goals,
+      targetCourse: data.targetCourse,
+      targetUniversity: data.targetUniversity || goals.targetUniversity || '',
+      targetScore: data.targetScore,
+      weeklyHoursGoal: (data.studyHoursPerDay || 4) * (data.studyDaysPerWeek || 5),
+      updatedAt: nowIso,
+    });
+
     this.addXp(userId, 150, 'Completou o onboarding inicial');
   }
 
@@ -1159,19 +1172,22 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
     const existing = list.find((g) => g.userId === userId);
     if (existing) return existing;
 
+    const profile = this.getStudentProfile(userId);
     const defaultGoals: StudentGoals = {
       id: `goals-${userId}`,
       userId,
-      targetCourse: 'Medicina',
-      targetUniversity: 'USP / UNICAMP / ENEM',
-      targetScore: 820,
-      weeklyQuestionsGoal: 200,
-      weeklyQuestionsDone: 145,
-      weeklyHoursGoal: 25,
-      weeklyHoursDone: 18,
-      monthlySimuladosGoal: 4,
-      monthlySimuladosDone: 2,
-      focusDisciplines: ['Matemática', 'Física', 'Química', 'Biologia'],
+      targetCourse: profile?.targetCourse || '',
+      targetUniversity: profile?.targetUniversity || '',
+      targetScore: profile?.targetScore || 800,
+      weeklyQuestionsGoal: 150,
+      weeklyQuestionsDone: 0,
+      weeklyHoursGoal: (profile?.studyHoursPerDay || 4) * (profile?.studyDaysPerWeek || 5),
+      weeklyHoursDone: 0,
+      monthlySimuladosGoal: 2,
+      monthlySimuladosDone: 0,
+      focusDisciplines: (profile?.difficultSubjects && profile.difficultSubjects.length > 0)
+        ? (profile.difficultSubjects as Disciplina[])
+        : ['Matemática', 'Física', 'Química', 'Redação'],
       updatedAt: new Date().toISOString(),
     };
     list.push(defaultGoals);
@@ -1669,6 +1685,99 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
       coupon.usedCount = (coupon.usedCount || 0) + 1;
       this.set(STORAGE_KEYS.COUPONS, list);
     }
+  }
+
+  public getUserById(id: string): User | null {
+    return this.getUsers().find((u) => u.id === id) || null;
+  }
+
+  public getSimuladoAttempts(userId?: string): SimuladoAttempt[] {
+    return this.getAttempts(userId);
+  }
+
+  public getEssaySubmissions(userId?: string): Essay[] {
+    return this.getEssays(userId);
+  }
+
+  public getMistakeNotebook(userId: string): MistakeNotebookItem[] {
+    return this.getMistakes(userId);
+  }
+
+  // ==========================================
+  // GATE 12: ZERAR JORNADA DO ALUNO (AÇÃO ADMIN SEGURA)
+  // ==========================================
+  public resetStudentJourney(studentId: string, reason: string, adminUser?: User | null): { success: boolean; error?: string } {
+    const user = this.getUserById(studentId);
+    if (!user) {
+      return { success: false, error: 'Aluno não encontrado.' };
+    }
+
+    // 1. Limpa apenas dados pedagógicos do aluno
+    const attempts = this.get<SimuladoAttempt[]>(STORAGE_KEYS.ATTEMPTS, []).filter(a => a.userId !== studentId);
+    this.set(STORAGE_KEYS.ATTEMPTS, attempts);
+
+    const essays = this.get<Essay[]>(STORAGE_KEYS.ESSAYS, []).filter(e => e.userId !== studentId);
+    this.set(STORAGE_KEYS.ESSAYS, essays);
+
+    const sessions = this.get<StudySession[]>(STORAGE_KEYS.STUDY_SESSIONS, []).filter(s => s.userId !== studentId);
+    this.set(STORAGE_KEYS.STUDY_SESSIONS, sessions);
+
+    const mistakes = this.get<MistakeNotebookItem[]>(STORAGE_KEYS.MISTAKES, []).filter(m => m.userId !== studentId);
+    this.set(STORAGE_KEYS.MISTAKES, mistakes);
+
+    const topicMaps = this.get<Record<string, Record<string, any>>>(STORAGE_KEYS.TOPIC_STATUS, {});
+    delete topicMaps[studentId];
+    this.set(STORAGE_KEYS.TOPIC_STATUS, topicMaps);
+
+    const materialProgress = this.get<Record<string, any>>(STORAGE_KEYS.MATERIAL_PROGRESS, {});
+    delete materialProgress[studentId];
+    this.set(STORAGE_KEYS.MATERIAL_PROGRESS, materialProgress);
+
+    // 2. Reseta métricas educacionais no perfil do aluno, mantendo curso e conta intactos
+    const profiles = this.get<StudentProfile[]>(STORAGE_KEYS.PROFILES, []);
+    const pIndex = profiles.findIndex(p => p.userId === studentId);
+    if (pIndex >= 0) {
+      profiles[pIndex] = {
+        ...profiles[pIndex],
+        streakDays: 0,
+        lastStudyDate: '',
+        xp: 0,
+        level: 1,
+      };
+      this.set(STORAGE_KEYS.PROFILES, profiles);
+    }
+
+    // 3. Reseta progresso acumulado nas metas
+    const goalsList = this.get<StudentGoals[]>(STORAGE_KEYS.STUDENT_GOALS, []);
+    const gIndex = goalsList.findIndex(g => g.userId === studentId);
+    if (gIndex >= 0) {
+      goalsList[gIndex] = {
+        ...goalsList[gIndex],
+        weeklyQuestionsDone: 0,
+        weeklyHoursDone: 0,
+        monthlySimuladosDone: 0,
+        updatedAt: new Date().toISOString(),
+      };
+      this.set(STORAGE_KEYS.STUDENT_GOALS, goalsList);
+    }
+
+    // 4. Registra na trilha de auditoria administrativa
+    const auditLogs = this.get<any[]>(STORAGE_KEYS.AUDIT_LOGS, []);
+    auditLogs.unshift({
+      id: `audit-${Date.now()}`,
+      action: 'RESET_STUDENT_JOURNEY',
+      adminId: adminUser?.id || 'admin-system',
+      adminEmail: adminUser?.email || 'admin@enem2026pro.com',
+      targetUserId: studentId,
+      targetUserEmail: user.email,
+      reason,
+      timestamp: new Date().toISOString(),
+      details: 'Jornada pedagógica zerada (simulados, redações, horas, questões e streak). Conta e pagamentos preservados.',
+    });
+    this.set(STORAGE_KEYS.AUDIT_LOGS, auditLogs);
+
+    this.notify();
+    return { success: true };
   }
 }
 

@@ -20,18 +20,19 @@ export const userRepository = {
         state: data.state,
         city: data.city,
         school: data.school,
-        targetCourse: data.target_course || 'Medicina',
-        targetUniversity: data.target_university || 'USP / UNICAMP',
-        targetScore: data.target_score || 800,
-        studyHoursPerDay: data.study_hours_per_day || 4,
-        studyDaysPerWeek: data.study_days_per_week || 5,
+        targetCourse: data.target_course || '',
+        targetUniversity: data.target_university || '',
+        targetScore: data.target_score ?? 800,
+        studyHoursPerDay: data.study_hours_per_day ?? 4,
+        studyDaysPerWeek: data.study_days_per_week ?? 5,
         difficultSubjects: data.difficult_subjects || [],
         examDate: data.exam_date || '2026-11-08',
-        onboardingCompleted: data.onboarding_completed,
-        streakDays: data.streak_days,
+        onboardingCompleted: !!data.onboarding_completed,
+        onboardingCompletedAt: data.onboarding_completed_at,
+        streakDays: data.streak_days ?? 0,
         lastStudyDate: data.last_study_date,
-        xp: data.xp,
-        level: data.level,
+        xp: data.xp ?? 0,
+        level: data.level ?? 1,
       };
     }
 
@@ -76,6 +77,7 @@ export const userRepository = {
     userId: string,
     data: {
       targetCourse: string;
+      targetUniversity?: string;
       targetScore: number;
       studyHoursPerDay: number;
       studyDaysPerWeek: number;
@@ -83,17 +85,21 @@ export const userRepository = {
       examDate: string;
     }
   ): Promise<boolean> {
+    db.completeOnboarding(userId, data);
+
     if (isSupabaseConfigured && supabase) {
       const { error } = await supabase
         .from('student_profiles')
         .update({
           target_course: data.targetCourse,
+          target_university: data.targetUniversity || null,
           target_score: data.targetScore,
           study_hours_per_day: data.studyHoursPerDay,
           study_days_per_week: data.studyDaysPerWeek,
           difficult_subjects: data.difficultSubjects,
           exam_date: data.examDate,
           onboarding_completed: true,
+          onboarding_completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', userId);
@@ -101,7 +107,6 @@ export const userRepository = {
       return !error;
     }
 
-    db.completeOnboarding(userId, data);
     return true;
   },
 };
