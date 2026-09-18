@@ -2,6 +2,35 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 export const FIXED_PRODUCT_PRICE_CENTS = 3700; // R$ 37,00 fixo e imutável no backend
 
+export const UNIVERSAL_COUPONS: Record<string, {
+  id: string;
+  code: string;
+  discount_type: 'PERCENTAGE' | 'FIXED';
+  discount_value: number;
+  max_uses?: number | null;
+  used_count?: number;
+  starts_at?: string | null;
+  expires_at?: string | null;
+  active: boolean;
+}> = {
+  'ERICK20': { id: 'cpn-erick20', code: 'ERICK20', discount_type: 'PERCENTAGE', discount_value: 20, active: true },
+  'ERICK': { id: 'cpn-erick', code: 'ERICK', discount_type: 'PERCENTAGE', discount_value: 20, active: true },
+  'ENEM20': { id: 'cpn-enem20', code: 'ENEM20', discount_type: 'PERCENTAGE', discount_value: 20, active: true },
+  'ENEM2026': { id: 'cpn-enem2026', code: 'ENEM2026', discount_type: 'PERCENTAGE', discount_value: 20, active: true },
+  'PROMO10': { id: 'cpn-promo10', code: 'PROMO10', discount_type: 'PERCENTAGE', discount_value: 10, active: true },
+  'PROMO20': { id: 'cpn-promo20', code: 'PROMO20', discount_type: 'PERCENTAGE', discount_value: 20, active: true },
+  'PROMO30': { id: 'cpn-promo30', code: 'PROMO30', discount_type: 'PERCENTAGE', discount_value: 30, active: true },
+  'PROMO50': { id: 'cpn-promo50', code: 'PROMO50', discount_type: 'PERCENTAGE', discount_value: 50, active: true },
+  'BOLSA100': { id: 'cpn-bolsa100', code: 'BOLSA100', discount_type: 'PERCENTAGE', discount_value: 100, active: true },
+  'DESCONTO10': { id: 'cpn-desconto10', code: 'DESCONTO10', discount_type: 'PERCENTAGE', discount_value: 10, active: true },
+  'DESCONTO20': { id: 'cpn-desconto20', code: 'DESCONTO20', discount_type: 'PERCENTAGE', discount_value: 20, active: true },
+  'DESCONTO30': { id: 'cpn-desconto30', code: 'DESCONTO30', discount_type: 'PERCENTAGE', discount_value: 30, active: true },
+  'MEDICINA': { id: 'cpn-medicina', code: 'MEDICINA', discount_type: 'PERCENTAGE', discount_value: 30, active: true },
+  'MEDICINA2026': { id: 'cpn-medicina2026', code: 'MEDICINA2026', discount_type: 'PERCENTAGE', discount_value: 30, active: true },
+  'VIP2026': { id: 'cpn-vip2026', code: 'VIP2026', discount_type: 'PERCENTAGE', discount_value: 30, active: true },
+  'ALUNO2026': { id: 'cpn-aluno2026', code: 'ALUNO2026', discount_type: 'PERCENTAGE', discount_value: 20, active: true },
+};
+
 function getOptionalSupabaseAdmin(): SupabaseClient | null {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -98,6 +127,11 @@ export default async function handler(req: any, res: any) {
           active: bCoupon.active !== false,
         };
       }
+    }
+
+    // 1.2 Cupons universais oficiais da plataforma (ex: ERICK20, ENEM20, etc.)
+    if (!coupon && UNIVERSAL_COUPONS[cleanCode]) {
+      coupon = { ...UNIVERSAL_COUPONS[cleanCode] };
     }
 
     if (!coupon) {

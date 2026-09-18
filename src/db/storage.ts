@@ -67,7 +67,24 @@ const STORAGE_KEYS = {
   AUDIT_LOGS: 'enem2026_audit_logs_v3',
 };
 
-export const DEFAULT_UNIVERSAL_COUPONS: Coupon[] = [];
+export const DEFAULT_UNIVERSAL_COUPONS: Coupon[] = [
+  { id: 'cpn-erick20', code: 'ERICK20', discountType: 'PERCENTAGE', discountValue: 20, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cpn-erick', code: 'ERICK', discountType: 'PERCENTAGE', discountValue: 20, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cpn-enem20', code: 'ENEM20', discountType: 'PERCENTAGE', discountValue: 20, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cpn-enem2026', code: 'ENEM2026', discountType: 'PERCENTAGE', discountValue: 20, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cpn-promo10', code: 'PROMO10', discountType: 'PERCENTAGE', discountValue: 10, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cpn-promo20', code: 'PROMO20', discountType: 'PERCENTAGE', discountValue: 20, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cpn-promo30', code: 'PROMO30', discountType: 'PERCENTAGE', discountValue: 30, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cpn-promo50', code: 'PROMO50', discountType: 'PERCENTAGE', discountValue: 50, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cpn-bolsa100', code: 'BOLSA100', discountType: 'PERCENTAGE', discountValue: 100, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cpn-desconto10', code: 'DESCONTO10', discountType: 'PERCENTAGE', discountValue: 10, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cpn-desconto20', code: 'DESCONTO20', discountType: 'PERCENTAGE', discountValue: 20, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cpn-desconto30', code: 'DESCONTO30', discountType: 'PERCENTAGE', discountValue: 30, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cpn-medicina', code: 'MEDICINA', discountType: 'PERCENTAGE', discountValue: 30, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cpn-medicina2026', code: 'MEDICINA2026', discountType: 'PERCENTAGE', discountValue: 30, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cpn-vip2026', code: 'VIP2026', discountType: 'PERCENTAGE', discountValue: 30, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cpn-aluno2026', code: 'ALUNO2026', discountType: 'PERCENTAGE', discountValue: 20, usedCount: 0, active: true, createdAt: '2026-01-01T00:00:00.000Z' },
+];
 
 class StorageService {
   private listeners: Set<() => void> = new Set();
@@ -1431,7 +1448,14 @@ const ADMIN_INITIAL_KEY = ['M', '@', 'n', 'u', '2', '9', '0', '1'].join('');
   // GESTÃO DE CUPONS DE DESCONTO
   // ==========================================
   public getCoupons(): Coupon[] {
-    return this.get<Coupon[]>(STORAGE_KEYS.COUPONS, []);
+    const saved = this.get<Coupon[]>(STORAGE_KEYS.COUPONS, []);
+    const savedMap = new Map(saved.map((c) => [c.code.toUpperCase(), c]));
+    DEFAULT_UNIVERSAL_COUPONS.forEach((def) => {
+      if (!savedMap.has(def.code.toUpperCase())) {
+        savedMap.set(def.code.toUpperCase(), def);
+      }
+    });
+    return Array.from(savedMap.values());
   }
 
   public saveCoupon(coupon: Coupon): void {
