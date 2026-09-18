@@ -92,17 +92,10 @@ export function getAppBaseUrl(req: any): string {
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
   }
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.replace(/\/$/, '')}`;
-  }
 
   const rawHost = req?.headers ? (req.headers['x-forwarded-host'] || req.headers.host || '') : '';
-  if (rawHost.includes('vercel.app')) {
-    return 'https://enem-2026-pro.vercel.app';
-  }
-
-  const proto = req?.headers ? (req.headers['x-forwarded-proto'] || 'https') : 'https';
-  if (rawHost) {
+  if (rawHost.includes('localhost') || rawHost.includes('127.0.0.1')) {
+    const proto = req?.headers ? (req.headers['x-forwarded-proto'] || 'http') : 'http';
     return `${proto}://${rawHost}`;
   }
 

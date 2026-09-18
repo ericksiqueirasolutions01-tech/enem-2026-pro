@@ -141,7 +141,7 @@ export const PaymentSuccess: React.FC = () => {
       db.approveUser(u.id);
       navigate('/app');
     } else {
-      navigate('/login');
+      window.location.href = 'https://enem-2026-pro.vercel.app/login';
     }
   };
 
@@ -245,6 +245,14 @@ export const PaymentSuccess: React.FC = () => {
                   <span>Salvar Senha e Entrar</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
+                <div className="pt-1 text-center">
+                  <a
+                    href="https://enem-2026-pro.vercel.app/login"
+                    className="text-xs font-bold text-emerald-400 hover:text-emerald-300 underline"
+                  >
+                    Já tem conta cadastrada? Ir para Login &rarr;
+                  </a>
+                </div>
               </div>
             )
           ) : (

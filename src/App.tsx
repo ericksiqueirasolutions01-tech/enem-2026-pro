@@ -106,6 +106,16 @@ export function App() {
   );
 
   useEffect(() => {
+    // Redireciona qualquer acesso vindo de domínios preview/temporários para o domínio oficial de produção
+    if (
+      typeof window !== 'undefined' &&
+      window.location.hostname.includes('vercel.app') &&
+      window.location.hostname !== 'enem-2026-pro.vercel.app'
+    ) {
+      window.location.replace(`https://enem-2026-pro.vercel.app${window.location.pathname}${window.location.search}`);
+      return;
+    }
+
     // Sincroniza sessão inicial via authRepository
     authRepository.getCurrentSessionUser().then((user) => {
       if (user) {
