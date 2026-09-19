@@ -174,7 +174,7 @@ export const paymentRepository = {
           headers['Authorization'] = `Bearer ${token}`;
         }
 
-        const res = await fetch('/api/payments/create', {
+        let res = await fetch('/api/checkout/create', {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -185,6 +185,20 @@ export const paymentRepository = {
             finalPriceCents: 0,
           }),
         });
+
+        if (!res.ok && res.status === 404) {
+          res = await fetch('/api/payments/create', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              userId: currentUser?.id,
+              name: customerName,
+              email: customerEmail,
+              couponCode,
+              finalPriceCents: 0,
+            }),
+          });
+        }
 
         const data = await res.json();
         if (data.success && (data.alreadyActive || data.isFreeCoupon)) {
@@ -221,7 +235,7 @@ export const paymentRepository = {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const res = await fetch('/api/payments/create', {
+      let res = await fetch('/api/checkout/create', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -234,6 +248,22 @@ export const paymentRepository = {
           finalPriceCents,
         }),
       });
+
+      if (!res.ok && res.status === 404) {
+        res = await fetch('/api/payments/create', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            userId: currentUser?.id,
+            name: customerName,
+            email: customerEmail,
+            phone: customerPhone,
+            couponCode,
+            discountCents: options?.discountCents,
+            finalPriceCents,
+          }),
+        });
+      }
 
       const contentType = res.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
@@ -459,17 +489,7 @@ export const paymentRepository = {
       return { isEntitled: true };
     }
 
-    // Para qualquer aluno: exige pedido com status PAID verificado no backend
-    try {
-      const statusRes = await this.checkPaymentStatus();
-      if (statusRes && statusRes.isPaid && statusRes.status === 'PAID') {
-        return { isEntitled: true };
-      }
-    } catch {
-      // Fail closed
-    }
-
-    // Se Supabase estiver conectado no cliente, consulta direta na tabela orders por pedido PAID
+    // 1. Se Supabase estiver conectado no cliente, consulta direta e rápida na tabela orders por pedido PAID (GATE 1 / GATE 2)
     if (isSupabaseConfigured && supabase) {
       try {
         const { data: paidOrders, error } = await supabase
@@ -482,9 +502,21 @@ export const paymentRepository = {
         if (!error && paidOrders && paidOrders.length > 0) {
           return { isEntitled: true };
         }
+        return { isEntitled: false, reason: 'NO_CONFIRMED_PAYMENT' };
       } catch {
         // Fail closed
+        return { isEntitled: false, reason: 'VERIFICATION_ERROR' };
       }
+    }
+
+    // 2. Fallback somente se Supabase não estiver configurado no cliente
+    try {
+      const statusRes = await this.checkPaymentStatus({ email: user.email });
+      if (statusRes.isPaid && statusRes.status === 'PAID') {
+        return { isEntitled: true };
+      }
+    } catch {
+      // Fail closed
     }
 
     return { isEntitled: false, reason: 'NO_CONFIRMED_PAYMENT' };

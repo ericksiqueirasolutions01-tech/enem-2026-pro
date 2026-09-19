@@ -161,50 +161,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
   };
 
   const loadCoupons = async () => {
-    let currentServerCoupons: Coupon[] = [];
     try {
       const serverCoupons = await paymentRepository.listAdminCoupons();
-      if (serverCoupons && serverCoupons.length > 0) {
-        currentServerCoupons = serverCoupons;
-        setCoupons(serverCoupons);
-      }
-    } catch {}
-
-    // GATE 8: Checar se existem cupons no localStorage deste PC que ainda não estão no servidor
-    const localCoupons = db.getCoupons();
-    const serverCodes = new Set(currentServerCoupons.map((c) => c.code.toUpperCase()));
-    const unsynced = localCoupons.filter((c) => !serverCodes.has(c.code.toUpperCase()));
-    setUnsyncedLegacyCount(unsynced.length);
-    if (currentServerCoupons.length === 0 && localCoupons.length > 0) {
-      setCoupons(localCoupons);
-    }
-  };
-
-  const handleImportLegacyCoupons = async () => {
-    setIsSyncingLegacy(true);
-    try {
-      const localCoupons = db.getCoupons();
-      let importedCount = 0;
-      for (const c of localCoupons) {
-        const res = await paymentRepository.createAdminCoupon({
-          code: c.code,
-          discountType: c.discountType,
-          discountValue: c.discountValue,
-          maxUses: c.maxUses ?? undefined,
-          expiresAt: c.expiresAt ?? undefined,
-        });
-        if (res.success) {
-          importedCount++;
-        }
-      }
-      await loadCoupons();
-      setAdminToast(`GATE 8: ${importedCount} cupom(ns) locais migrados com sucesso para a base central!`);
-      setTimeout(() => setAdminToast(null), 4000);
-    } catch (err: any) {
-      setAdminToast(`Erro na migração de cupons: ${err?.message || 'Falha de conexão'}`);
-      setTimeout(() => setAdminToast(null), 4000);
-    } finally {
-      setIsSyncingLegacy(false);
+      setCoupons(serverCoupons || []);
+    } catch (err) {
+      console.warn('[Admin] Erro ao carregar cupons do servidor:', err);
     }
   };
 
@@ -234,71 +195,63 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
       return;
     }
 
-    const newCoupon: Coupon = {
-      id: `cpn-${Date.now()}`,
-      code: cleanCode,
-      discountType: cDiscountType,
-      discountValue: val,
-      maxUses: cMaxUses ? parseInt(cMaxUses, 10) : undefined,
-      usedCount: 0,
-      active: true,
-      createdAt: new Date().toISOString(),
-      expiresAt: cExpiresAt ? new Date(cExpiresAt).toISOString() : undefined,
-    };
-
-    // 1. Salvar no Supabase via API backend
     try {
       const apiRes = await paymentRepository.createAdminCoupon({
-        code: newCoupon.code,
-        discountType: newCoupon.discountType,
-        discountValue: newCoupon.discountValue,
-        maxUses: newCoupon.maxUses ?? undefined,
-        expiresAt: newCoupon.expiresAt ?? undefined,
+        code: cleanCode,
+        discountType: cDiscountType,
+        discountValue: val,
+        maxUses: cMaxUses ? parseInt(cMaxUses, 10) : undefined,
+        expiresAt: cExpiresAt ? new Date(cExpiresAt).toISOString() : undefined,
       });
 
-      if (!apiRes.success && apiRes.message) {
-        setAdminToast(`Aviso: ${apiRes.message}`);
+      if (apiRes.success) {
+        await loadCoupons();
+        setIsCouponModalOpen(false);
+        setCCode('');
+        setCDiscountValue(20);
+        setCMaxUses('');
+        setCExpiresAt('');
+        setAdminToast(`Cupom ${cleanCode} criado com sucesso no banco central!`);
+        setTimeout(() => setAdminToast(null), 4000);
+      } else {
+        setAdminToast(`Erro ao criar cupom: ${apiRes.message || 'Falha no servidor.'}`);
+        setTimeout(() => setAdminToast(null), 4000);
       }
     } catch (err: any) {
-      console.warn('Erro ao salvar cupom na API:', err);
+      setAdminToast(`Erro ao salvar cupom na base central: ${err?.message || 'Falha de conexão'}`);
+      setTimeout(() => setAdminToast(null), 4000);
     }
-
-    // 2. Sincronizar cache local e recarregar
-    db.saveCoupon(newCoupon);
-    await loadCoupons();
-    setIsCouponModalOpen(false);
-    setCCode('');
-    setCDiscountValue(20);
-    setCMaxUses('');
-    setCExpiresAt('');
-    setAdminToast(`Cupom ${newCoupon.code} criado e sincronizado com sucesso!`);
-    setTimeout(() => setAdminToast(null), 4000);
   };
 
   const handleToggleCoupon = async (coupon: Coupon) => {
     const updatedActive = !coupon.active;
     try {
-      await paymentRepository.updateAdminCoupon(coupon.id, { active: updatedActive });
-    } catch (err) {
-      console.warn('Erro ao atualizar cupom na API:', err);
+      const res = await paymentRepository.updateAdminCoupon(coupon.id, { active: updatedActive });
+      if (res.success) {
+        await loadCoupons();
+        setAdminToast(`Cupom ${coupon.code} ${updatedActive ? 'ativado' : 'desativado'}.`);
+      } else {
+        setAdminToast(`Erro ao atualizar cupom: ${res.message || 'Falha no servidor.'}`);
+      }
+    } catch (err: any) {
+      setAdminToast(`Erro de conexão ao atualizar cupom.`);
     }
-    const updated = { ...coupon, active: updatedActive };
-    db.saveCoupon(updated);
-    await loadCoupons();
-    setAdminToast(`Cupom ${coupon.code} ${updated.active ? 'ativado' : 'desativado'}.`);
     setTimeout(() => setAdminToast(null), 3000);
   };
 
   const handleDeleteCoupon = async (id: string, code: string) => {
     if (window.confirm(`Deseja realmente excluir o cupom "${code}"? Esta ação não pode ser desfeita.`)) {
       try {
-        await paymentRepository.deleteAdminCoupon(id, code);
-      } catch (err) {
-        console.warn('Erro ao deletar cupom na API:', err);
+        const res = await paymentRepository.deleteAdminCoupon(id, code);
+        if (res.success) {
+          await loadCoupons();
+          setAdminToast(`Cupom ${code} excluído com sucesso.`);
+        } else {
+          setAdminToast(`Erro ao excluir cupom: ${res.message || 'Falha no servidor.'}`);
+        }
+      } catch (err: any) {
+        setAdminToast(`Erro ao deletar cupom no servidor.`);
       }
-      db.deleteCoupon(id);
-      await loadCoupons();
-      setAdminToast(`Cupom ${code} excluído com sucesso.`);
       setTimeout(() => setAdminToast(null), 3000);
     }
   };
@@ -2101,17 +2054,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
             </div>
 
             <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
-              {unsyncedLegacyCount > 0 && (
-                <button
-                  onClick={handleImportLegacyCoupons}
-                  disabled={isSyncingLegacy}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs transition shadow-lg shadow-amber-500/20 cursor-pointer disabled:opacity-50"
-                  title="Detectamos cupons no seu computador que ainda não estão na base central do servidor."
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingLegacy ? 'animate-spin' : ''}`} />
-                  <span>{isSyncingLegacy ? 'Migrando...' : `Importar ${unsyncedLegacyCount} Cupons Locais para o Servidor`}</span>
-                </button>
-              )}
               <button
                 onClick={() => {
                   setCCode('');

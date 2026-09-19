@@ -49,21 +49,25 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
   const [isValidatingReceipt, setIsValidatingReceipt] = useState(false);
   const [showManualReceiptInput, setShowManualReceiptInput] = useState(false);
 
+  // Máquina de estados oficial (GATE 6):
+  // IDLE -> VALIDATING_COUPON -> CREATING_CHECKOUT -> REDIRECTING -> WAITING_CONFIRMATION -> PAID -> ERROR
+  type CheckoutUiState =
+    | 'IDLE'
+    | 'VALIDATING_COUPON'
+    | 'CREATING_CHECKOUT'
+    | 'REDIRECTING'
+    | 'WAITING_CONFIRMATION'
+    | 'PAID'
+    | 'ERROR';
+
+  const [uiState, setUiState] = useState<CheckoutUiState>('IDLE');
+
   useEffect(() => {
+    // Zero polling automático no mount (PRINCÍPIO 1 / GATE 6)
+    // Apenas redireciona se o usuário já for o administrador do sistema
     const user = db.getCurrentUser();
     if (user && user.role === 'ADMINISTRADOR' && user.status === 'APROVADO') {
       onNavigate('admin');
-      return;
-    }
-
-    if (user) {
-      paymentRepository.verifyAccessEntitlement(user).then((res) => {
-        if (res.isEntitled) {
-          onNavigate('dashboard');
-        } else {
-          handleCheckStatus();
-        }
-      });
     }
   }, [onNavigate]);
 

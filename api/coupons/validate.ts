@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-export const FIXED_PRODUCT_PRICE_CENTS = 3700; // R$ 37,00 fixo e imutável
+export const FIXED_PRODUCT_PRICE_CENTS = 3700;
 
 export interface CentralCoupon {
   id: string;
@@ -39,18 +39,14 @@ function normalizeCouponCode(code: string): string {
   return (code || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
 }
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __enem2026_server_coupons_cache: Map<string, CentralCoupon> | undefined;
-}
-
 function getServerCache(): Map<string, CentralCoupon> {
-  if (!globalThis.__enem2026_server_coupons_cache) {
+  const g = globalThis as unknown as { __enem2026_server_coupons_cache?: Map<string, CentralCoupon> };
+  if (!g.__enem2026_server_coupons_cache) {
     const map = new Map<string, CentralCoupon>();
     Object.values(UNIVERSAL_COUPONS).forEach((c) => map.set(c.code, { ...c }));
-    globalThis.__enem2026_server_coupons_cache = map;
+    g.__enem2026_server_coupons_cache = map;
   }
-  return globalThis.__enem2026_server_coupons_cache;
+  return g.__enem2026_server_coupons_cache;
 }
 
 function getOptionalSupabaseAdmin(): SupabaseClient | null {

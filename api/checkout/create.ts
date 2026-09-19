@@ -52,6 +52,46 @@ function getServerCache(): Map<string, CentralCoupon> {
   return g.__enem2026_server_coupons_cache;
 }
 
+function getOptionalSupabaseAdmin(): SupabaseClient | null {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null;
+  }
+  try {
+    return createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function getAuthenticatedUser(req: any) {
+  const authHeader = req.headers?.authorization || req.headers?.Authorization;
+  if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.replace('Bearer ', '').trim();
+  if (!token) return null;
+
+  try {
+    const supabaseAdmin = getOptionalSupabaseAdmin();
+    if (!supabaseAdmin) return null;
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !data?.user) {
+      return null;
+    }
+    return data.user;
+  } catch {
+    return null;
+  }
+}
+
 async function getCentralCoupon(rawCode: string, supabase?: SupabaseClient | null): Promise<CentralCoupon | null> {
   const cleanCode = normalizeCouponCode(rawCode);
   if (!cleanCode) return null;
@@ -80,7 +120,7 @@ async function getCentralCoupon(rawCode: string, supabase?: SupabaseClient | nul
         };
       }
     } catch (dbErr) {
-      console.warn('[Payments] Falha ao consultar Supabase para cupom:', dbErr);
+      console.warn('[Checkout] Falha ao consultar Supabase para cupom:', dbErr);
     }
   }
 
@@ -155,46 +195,6 @@ function calculateCouponDiscount(
   };
 }
 
-function getOptionalSupabaseAdmin(): SupabaseClient | null {
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
-    return null;
-  }
-  try {
-    return createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
-  } catch {
-    return null;
-  }
-}
-
-async function getAuthenticatedUser(req: any) {
-  const authHeader = req.headers?.authorization || req.headers?.Authorization;
-  if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-
-  const token = authHeader.replace('Bearer ', '').trim();
-  if (!token) return null;
-
-  try {
-    const supabaseAdmin = getOptionalSupabaseAdmin();
-    if (!supabaseAdmin) return null;
-    const { data, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !data?.user) {
-      return null;
-    }
-    return data.user;
-  } catch {
-    return null;
-  }
-}
-
 function getAppBaseUrl(req: any): string {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
@@ -208,7 +208,6 @@ function getAppBaseUrl(req: any): string {
 export default async function handler(req: any, res: any) {
   res.setHeader('Content-Type', 'application/json');
 
-  // 1. Validar método HTTP
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ success: false, error: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' });
@@ -218,52 +217,6 @@ export default async function handler(req: any, res: any) {
     const supabase = getOptionalSupabaseAdmin();
     const authUser = await getAuthenticatedUser(req);
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-    // Validação direta de cupom via action: 'validate' (compatibilidade universal Vercel / cross-device)
-    if (body.action === 'validate' || req.query?.action === 'validate') {
-      const rawC = body.code || body.couponCode || (typeof body.coupon === 'string' ? body.coupon : body.coupon?.code);
-      if (!rawC || typeof rawC !== 'string' || !rawC.trim()) {
-        return res.status(400).json({ valid: false, error: 'COUPON_NOT_FOUND', message: 'Informe o código do cupom.' });
-      }
-      const cClean = normalizeCouponCode(rawC);
-      const vCoupon = await getCentralCoupon(cClean, supabase);
-
-      if (!vCoupon) {
-        return res.status(200).json({ valid: false, error: 'COUPON_NOT_FOUND', message: 'Cupom inexistente ou inválido.' });
-      }
-
-      const ruleCheck = validateCouponRules(vCoupon);
-      if (!ruleCheck.valid) {
-        return res.status(200).json({ valid: false, error: ruleCheck.error, message: ruleCheck.message });
-      }
-
-      const calc = calculateCouponDiscount(vCoupon, FIXED_PRODUCT_PRICE_CENTS);
-      let dCents = calc.discountCents;
-      let dueCents = calc.amountDueCents;
-
-      if (dueCents > 0 && dueCents < 100) {
-        dueCents = 100;
-        dCents = FIXED_PRODUCT_PRICE_CENTS - dueCents;
-      }
-
-      return res.status(200).json({
-        valid: true,
-        coupon: {
-          id: vCoupon.id,
-          code: vCoupon.code,
-          discountType: vCoupon.discount_type,
-          discountValue: vCoupon.discount_value,
-          active: vCoupon.active,
-          expiresAt: vCoupon.expires_at,
-        },
-        productPriceCents: FIXED_PRODUCT_PRICE_CENTS,
-        discountCents: dCents,
-        amountDueCents: dueCents,
-        isFree: dueCents === 0,
-        message: dueCents === 0
-          ? 'Cupom de 100% de desconto! Acesso gratuito liberado.'
-          : `Cupom aplicado! Desconto de R$ ${(dCents / 100).toFixed(2).replace('.', ',')}`,
-      });
-    }
 
     // Obter dados do cliente
     let userId = authUser?.id || body.userId || `user-${Date.now()}`;
@@ -271,7 +224,7 @@ export default async function handler(req: any, res: any) {
     let customerEmail = authUser?.email || body.email || 'aluno@enem2026pro.com';
     let customerPhone: string | undefined = body.phone ? String(body.phone).replace(/\D/g, '') : undefined;
 
-    // 2. Se Supabase estiver conectado e houver usuário autenticado, verificar perfil
+    // 1. Se Supabase estiver conectado e houver usuário autenticado, verificar perfil
     if (authUser && supabase) {
       try {
         const { data: profile } = await supabase
@@ -295,13 +248,13 @@ export default async function handler(req: any, res: any) {
           }
         }
       } catch (profileErr) {
-        console.warn('[Payments] Erro ao consultar perfil no Supabase:', profileErr);
+        console.warn('[Checkout] Erro ao consultar perfil no Supabase:', profileErr);
       }
     } else if (body.name) {
       customerName = body.name;
     }
 
-    // 3. Validação estrita de cupom no servidor (GATES 1, 9, 10, 11)
+    // 2. Preço base oficial fixo (GATE 5 / GATE 8)
     const rawCoupon = body.couponCode || body.coupon;
     let finalAmountCents = FIXED_PRODUCT_PRICE_CENTS; // R$ 37,00 padrão
     let appliedDiscountCents = 0;
@@ -347,7 +300,7 @@ export default async function handler(req: any, res: any) {
         }
       }
 
-      // Cálculo de desconto estrito pelo servidor (GATE 10)
+      // Cálculo de desconto estrito pelo servidor
       const calc = calculateCouponDiscount(coupon, FIXED_PRODUCT_PRICE_CENTS);
       appliedDiscountCents = calc.discountCents;
       finalAmountCents = calc.amountDueCents;
@@ -365,7 +318,7 @@ export default async function handler(req: any, res: any) {
     const orderNsu = `enem-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
     let orderId = orderNsu;
 
-    // 4. Se o cupom conceder 100% de desconto (R$ 0,00), ativação atômica server-side (GATE 14)
+    // 3. Se o cupom conceder 100% de desconto (R$ 0,00), ativação atômica server-side (GATE 11 / GATE 14)
     if (finalAmountCents === 0) {
       if (!userId) {
         return res.status(401).json({
@@ -383,12 +336,14 @@ export default async function handler(req: any, res: any) {
         });
 
         if (rpcErr || !rpcRes?.success) {
-          console.error('[Payments] Falha ao ativar pedido com cupom 100%:', rpcErr || rpcRes);
+          console.error('[Checkout] Falha ao ativar pedido com cupom 100%:', rpcErr || rpcRes);
           return res.status(400).json({
             success: false,
             message: rpcRes?.message || 'Falha ao ativar cupom gratuito.',
           });
         }
+
+        console.log('[Checkout] order_created (FREE):', { orderNsu, userId, coupon: validatedCouponRecord.code });
 
         return res.status(200).json({
           success: true,
@@ -402,15 +357,13 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // Regra da adquirente InfinitePay (CloudWalk):
-    // A InfinitePay rejeita qualquer transação comercial com valor inferior a R$ 1,00 (100 centavos).
-    // Se o cupom deixar um valor residual abaixo de R$ 1,00 (ex: R$ 0,74), ajusta para o piso de 100 centavos
+    // Regra da InfinitePay: piso mínimo de R$ 1,00 para cobrança comercial
     if (finalAmountCents > 0 && finalAmountCents < 100) {
       finalAmountCents = 100;
       appliedDiscountCents = FIXED_PRODUCT_PRICE_CENTS - finalAmountCents;
     }
 
-    // 5. Registrar pedido PENDENTE no Supabase com snapshot do cupom (GATE 1, 2, 12)
+    // 4. Registrar pedido PENDENTE no Supabase (GATE 5)
     if (supabase && userId) {
       try {
         const { data: newOrder, error: orderInsertErr } = await supabase
@@ -439,11 +392,11 @@ export default async function handler(req: any, res: any) {
           orderId = newOrder.id;
         }
       } catch (dbErr) {
-        console.warn('[Payments] Não foi possível persistir no Supabase, prosseguindo com InfinitePay:', dbErr);
+        console.warn('[Checkout] Não foi possível persistir no Supabase, prosseguindo com InfinitePay:', dbErr);
       }
     }
 
-    // 6. Montar payload oficial InfinitePay (CloudWalk)
+    // 5. Montar payload oficial InfinitePay (CloudWalk)
     const handle = process.env.INFINITEPAY_HANDLE || DEFAULT_HANDLE;
     const appBaseUrl = getAppBaseUrl(req);
     const webhookSecret = process.env.INFINITEPAY_WEBHOOK_SECRET || '';
@@ -451,8 +404,8 @@ export default async function handler(req: any, res: any) {
     const infinitePayload: Record<string, unknown> = {
       handle,
       order_nsu: orderNsu,
-      redirect_url: `${appBaseUrl}/payment/success?order_id=${orderId}`,
-      webhook_url: `${appBaseUrl}/api/payments/webhook${webhookSecret ? `?secret=${encodeURIComponent(webhookSecret)}` : ''}`,
+      redirect_url: `${appBaseUrl}/payment/success?order_id=${orderId}&order_nsu=${orderNsu}`,
+      webhook_url: `${appBaseUrl}/api/payments/infinitepay/webhook${webhookSecret ? `?secret=${encodeURIComponent(webhookSecret)}` : ''}`,
       customer: {
         name: customerName,
         email: customerEmail,
@@ -467,7 +420,7 @@ export default async function handler(req: any, res: any) {
       ],
     };
 
-    // 7. Requisição server-to-server POST https://api.checkout.infinitepay.io/links
+    // 6. Requisição server-to-server POST https://api.checkout.infinitepay.io/links (GATE 5)
     const infiniteResponse = await fetch(`${INFINITEPAY_API_URL}/links`, {
       method: 'POST',
       headers: {
@@ -508,7 +461,7 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // Atualizar registro no banco se existir
+    // Atualizar registro no banco com slug e checkoutUrl
     if (supabase && orderId !== orderNsu) {
       try {
         await supabase
@@ -520,21 +473,28 @@ export default async function handler(req: any, res: any) {
           })
           .eq('id', orderId);
       } catch (updateErr) {
-        console.warn('[Payments] Erro ao atualizar checkout_url no banco:', updateErr);
+        console.warn('[Checkout] Erro ao atualizar checkout_url no banco:', updateErr);
       }
     }
+
+    console.log('[Checkout] checkout_link_created:', {
+      orderId,
+      orderNsu,
+      slug: ipData.slug || null,
+      finalPriceCents: finalAmountCents,
+    });
 
     return res.status(200).json({
       success: true,
       orderId,
-      externalReference: orderNsu,
+      orderNsu,
       checkoutUrl,
       finalPriceCents: finalAmountCents,
       appliedDiscountCents,
       status: 'PENDING',
     });
   } catch (error: any) {
-    console.error('[Payments] Erro inesperado em create:', error);
+    console.error('[Checkout] Erro inesperado em create:', error);
     return res.status(500).json({
       success: false,
       error: 'INTERNAL_SERVER_ERROR',

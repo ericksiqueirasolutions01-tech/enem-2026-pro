@@ -55,12 +55,13 @@ export const PaymentSuccess: React.FC = () => {
   };
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: any = null;
+    let currentAttempt = 0;
+    const abortController = new AbortController();
 
     const checkStatus = async () => {
-      let freshUser: any = null;
       try {
-        freshUser = await authRepository.getCurrentSessionUser();
+        const freshUser = await authRepository.getCurrentSessionUser();
         if (freshUser) {
           setCurrentUser(freshUser);
         }
@@ -75,9 +76,10 @@ export const PaymentSuccess: React.FC = () => {
           receiptUrl: receiptUrl || undefined,
           email: targetUser?.email,
         });
-        const entitlement = await paymentRepository.verifyAccessEntitlement(targetUser);
 
-        if ((statusRes.isPaid && statusRes.status === 'PAID') || entitlement.isEntitled) {
+        if (abortController.signal.aborted) return;
+
+        if (statusRes.isPaid && statusRes.status === 'PAID') {
           setIsApproved(true);
           setIsVerifying(false);
           triggerConfetti();
@@ -89,34 +91,44 @@ export const PaymentSuccess: React.FC = () => {
           return;
         }
 
-        // Tenta novamente por até 8 vezes com intervalo de 2.5s (20s totais de polling)
-        if (attempts < 8) {
-          setAttempts((prev) => prev + 1);
-          timer = setTimeout(checkStatus, 2500);
+        // Limite estrito de no máximo 3 tentativas (GATE 3 / PRINCÍPIO 3)
+        // Tentativa 1 (imediata), Tentativa 2 (após 2s), Tentativa 3 (após 4s) -> PARAR
+        currentAttempt++;
+        setAttempts(currentAttempt);
+
+        if (currentAttempt < 3) {
+          const delayMs = currentAttempt === 1 ? 2000 : 4000;
+          timer = setTimeout(checkStatus, delayMs);
         } else {
-          // FAIL-CLOSED: tempo esgotado sem confirmação do backend -> NÃO ativa acesso
+          // Para e exibe botão manual para o usuário
           setIsApproved(false);
           setIsVerifying(false);
           setErrorMessage(
-            'O pagamento ainda não foi confirmado pela operadora InfinitePay. Se você acabou de pagar no Pix ou Cartão, aguarde 1 a 2 minutos para a compensação e verifique seu status.'
+            'O pagamento ainda não foi compensado pela operadora InfinitePay. Se você já realizou o Pix ou Cartão, aguarde alguns instantes e clique no botão abaixo para verificar.'
           );
         }
       } catch (err: any) {
-        if (attempts < 4) {
-          setAttempts((prev) => prev + 1);
-          timer = setTimeout(checkStatus, 2500);
+        if (abortController.signal.aborted) return;
+        currentAttempt++;
+        setAttempts(currentAttempt);
+
+        if (currentAttempt < 3) {
+          timer = setTimeout(checkStatus, 3000);
         } else {
           setIsApproved(false);
           setIsVerifying(false);
-          setErrorMessage('Não foi possível confirmar o pagamento junto ao servidor. Tente atualizar a página.');
+          setErrorMessage('Não foi possível confirmar o pagamento neste momento. Você pode verificar novamente abaixo.');
         }
       }
     };
 
     checkStatus();
 
-    return () => clearTimeout(timer);
-  }, [orderId, attempts]);
+    return () => {
+      abortController.abort();
+      if (timer) clearTimeout(timer);
+    };
+  }, [orderId]);
 
   const handleEntrarNaPlataforma = () => {
     if (!isApproved) {

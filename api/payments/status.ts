@@ -1,5 +1,8 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+export const INFINITEPAY_API_URL = 'https://api.checkout.infinitepay.io';
+export const DEFAULT_HANDLE = 'erick-siqueira-bg2';
+
 function getOptionalSupabaseAdmin(): SupabaseClient | null {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -40,13 +43,6 @@ async function getAuthenticatedUser(req: any) {
   }
 }
 
-export const INFINITEPAY_API_URL = 'https://api.checkout.infinitepay.io';
-export const DEFAULT_HANDLE = 'erick-siqueira-bg2';
-
-export const RECONCILED_CONFIRMED_STUDENTS: Set<string> = new Set([
-  'paulo@gmail.com',
-]);
-
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
@@ -60,28 +56,13 @@ export default async function handler(req: any, res: any) {
     const transactionNsu = req.query.transaction_nsu || req.query.transactionId;
     const slug = req.query.slug || req.query.invoice_slug;
     const receiptUrl = req.query.receipt_url || req.query.receiptUrl;
-    const email = (req.query.email || user?.email || '').trim().toLowerCase();
 
     const supabase = getOptionalSupabaseAdmin();
-    let isPaid = false;
     let userStatus = 'PENDENTE_APROVACAO';
     let order: any = null;
 
-    // 0. Reconhecimento de alunos com pagamento conciliado comprovado
-    if (email && RECONCILED_CONFIRMED_STUDENTS.has(email)) {
-      order = {
-        id: orderId || `reconciled-${email}`,
-        status: 'PAID',
-        external_reference: externalRef || orderId || `reconciled-${email}`,
-        paid_at: new Date().toISOString(),
-        receipt_url: receiptUrl || null,
-        capture_method: 'infinitepay',
-        amount_cents: 3700,
-      };
-    }
-
     // 1. Se Supabase estiver disponível, consultar tabela de pedidos
-    if (supabase && !order) {
+    if (supabase) {
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
@@ -116,9 +97,25 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // 2. Se o pedido ainda não consta como PAID no banco (ou Supabase offline),
-    // consultar diretamente a adquirente bancária oficial InfinitePay via payment_check
-    const effectiveOrderNsu = externalRef || orderId || order?.external_reference;
+    let isPaid = order?.status === 'PAID';
+
+    // Se a ordem já consta como PAID no banco, retornar imediatamente (sem chamadas externas)
+    if (order?.status === 'PAID') {
+      return res.status(200).json({
+        success: true,
+        orderId: order.id,
+        externalReference: order.external_reference,
+        status: 'PAID',
+        isPaid: true,
+        userStatus: 'APROVADO',
+        amountCents: order.amount_cents,
+        paidAt: order.paid_at || order.updated_at,
+      });
+    }
+
+    // 2. Se o pedido existe e está PENDING, E foram fornecidos identificadores de transação
+    // (transactionNsu ou slug), efetuar verificação controlada via payment_check na InfinitePay
+    const effectiveOrderNsu = order?.external_reference || externalRef;
     let effectiveTransactionNsu = transactionNsu || order?.provider_payment_id;
     let effectiveSlug = slug || order?.provider_slug;
 
@@ -132,14 +129,14 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    const handle = process.env.INFINITEPAY_HANDLE || DEFAULT_HANDLE;
-
-    if (order?.status !== 'PAID' && (effectiveOrderNsu || effectiveTransactionNsu || effectiveSlug)) {
+    // Somente chamar payment_check se HOUVER pedido pendente real E identificadores concretos
+    if (order && order.status === 'PENDING' && (effectiveTransactionNsu || effectiveSlug)) {
+      const handle = process.env.INFINITEPAY_HANDLE || DEFAULT_HANDLE;
       try {
         const ipCheckPayload: Record<string, string> = {
           handle,
+          order_nsu: String(effectiveOrderNsu),
         };
-        if (effectiveOrderNsu) ipCheckPayload.order_nsu = String(effectiveOrderNsu);
         if (effectiveTransactionNsu) ipCheckPayload.transaction_nsu = String(effectiveTransactionNsu);
         if (effectiveSlug) ipCheckPayload.slug = String(effectiveSlug);
 
@@ -150,66 +147,60 @@ export default async function handler(req: any, res: any) {
         });
 
         if (checkResponse.ok) {
-          const checkData = (await checkResponse.json()) as any;
-          const isConfirmedByGateway =
-            (checkData?.paid === true ||
-              checkData?.status === 'PAID' ||
-              checkData?.status === 'approved' ||
-              checkData?.status === 'paid' ||
-              (typeof checkData?.paid_amount === 'number' && checkData.paid_amount > 0)) &&
-            checkData?.paid !== false &&
-            checkData?.status !== 'canceled' &&
-            checkData?.status !== 'refused' &&
-            checkData?.status !== 'pending';
+          const checkData = (await checkResponse.json()) as {
+            success?: boolean;
+            paid?: boolean;
+            amount?: number;
+          };
 
-          if (isConfirmedByGateway) {
-            order = {
-              id: order?.id || orderId || effectiveOrderNsu,
-              status: 'PAID',
-              external_reference: effectiveOrderNsu,
-              paid_at: checkData.paid_at || new Date().toISOString(),
-              receipt_url: checkData.receipt_url || null,
-              capture_method: checkData.capture_method || 'infinitepay',
-              amount_cents: checkData.paid_amount || checkData.amount || 3700,
-            };
-
-            // Se Supabase estiver conectado, atualizar banco via RPC atômica
+          if (checkData.success === true && checkData.paid === true) {
+            isPaid = true;
+            // Ativação atômica via RPC
             if (supabase) {
-              try {
-                await supabase.rpc('activate_paid_order', {
-                  p_external_reference: effectiveOrderNsu,
-                  p_provider_payment_id: checkData.transaction_nsu || effectiveTransactionNsu || null,
-                  p_provider_slug: checkData.slug || effectiveSlug || null,
-                  p_amount_cents: order.amount_cents,
-                  p_capture_method: order.capture_method,
-                  p_receipt_url: order.receipt_url,
-                });
-              } catch (updErr) {
-                console.warn('[Status] Falha ao atualizar Supabase após confirmação da InfinitePay:', updErr);
-              }
+              await supabase.rpc('activate_paid_order', {
+                p_external_reference: effectiveOrderNsu,
+                p_provider_payment_id: effectiveTransactionNsu || null,
+                p_provider_slug: effectiveSlug || null,
+                p_amount_cents: checkData.amount || order.amount_cents,
+                p_capture_method: 'infinitepay',
+                p_receipt_url: receiptUrl || null,
+              });
             }
+
+            return res.status(200).json({
+              success: true,
+              orderId: order.id,
+              externalReference: effectiveOrderNsu,
+              status: 'PAID',
+              isPaid: true,
+              userStatus: 'APROVADO',
+              amountCents: checkData.amount || order.amount_cents,
+              paidAt: new Date().toISOString(),
+            });
           }
         }
       } catch (checkErr) {
-        console.warn('[Status] Erro ao consultar payment_check na InfinitePay:', checkErr);
+        console.warn('[PaymentsStatus] Falha ao consultar payment_check na InfinitePay:', checkErr);
       }
     }
 
-    const isAdmin = user && (user.email === 'ericksiqueiraa@gmail.com' || user.email === 'ericksiqueiraaa@gmail.com');
-    isPaid = order?.status === 'PAID' || (Boolean(isAdmin) && userStatus === 'APROVADO');
-
+    // 3. Resposta Fail-Closed: sem confirmação comprovada, status permanece PENDING e isPaid false
     return res.status(200).json({
       success: true,
-      orderId: order?.id || orderId,
+      orderId: order?.id || orderId || null,
+      externalReference: effectiveOrderNsu || null,
       status: order?.status || (isPaid ? 'PAID' : 'PENDING'),
       isPaid,
-      userStatus: isPaid ? (isAdmin ? 'APROVADO' : 'APROVADO') : 'PENDENTE_APROVACAO',
-      paidAt: order?.paid_at,
-      receiptUrl: order?.receipt_url,
-      captureMethod: order?.capture_method,
+      userStatus,
+      message: isPaid ? 'Pagamento confirmado com sucesso!' : 'Pagamento pendente ou aguardando confirmação bancária.',
     });
   } catch (err: any) {
-    console.error('[Status] Erro ao consultar status:', err);
-    return res.status(500).json({ success: false, message: err?.message || 'Erro ao consultar status.' });
+    console.error('[PaymentsStatus] Erro inesperado:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'INTERNAL_SERVER_ERROR',
+      isPaid: false,
+      message: 'Erro interno ao consultar status do pagamento.',
+    });
   }
 }
