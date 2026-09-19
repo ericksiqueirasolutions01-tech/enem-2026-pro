@@ -392,6 +392,8 @@ export const paymentRepository = {
           orderNsu?: string;
           transactionNsu?: string;
           slug?: string;
+          receiptUrl?: string;
+          email?: string;
         }
   ): Promise<PaymentStatusResponse> {
     const token = await getAuthToken();
@@ -404,6 +406,8 @@ export const paymentRepository = {
     let orderId: string | undefined;
     let transactionNsu: string | undefined;
     let slug: string | undefined;
+    let receiptUrl: string | undefined;
+    let email: string | undefined;
 
     if (typeof params === 'string') {
       orderId = params.trim() || undefined;
@@ -411,11 +415,16 @@ export const paymentRepository = {
       orderId = params.orderId || params.orderNsu;
       transactionNsu = params.transactionNsu;
       slug = params.slug;
+      receiptUrl = params.receiptUrl;
+      email = params.email;
     }
 
-    if (!orderId && typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
       try {
-        orderId = localStorage.getItem('enem2026_last_order_id') || undefined;
+        if (!orderId) orderId = localStorage.getItem('enem2026_last_order_id') || undefined;
+        if (!transactionNsu) transactionNsu = localStorage.getItem('enem2026_last_transaction_nsu') || undefined;
+        if (!slug) slug = localStorage.getItem('enem2026_last_slug') || undefined;
+        if (!email) email = db.getCurrentUser()?.email || undefined;
       } catch {
         // ignore
       }
@@ -425,6 +434,8 @@ export const paymentRepository = {
     if (orderId) query.set('order_id', orderId);
     if (transactionNsu) query.set('transaction_nsu', transactionNsu);
     if (slug) query.set('slug', slug);
+    if (receiptUrl) query.set('receipt_url', receiptUrl);
+    if (email) query.set('email', email);
 
     const qs = query.toString();
     const url = qs ? `/api/payments/status?${qs}` : '/api/payments/status';

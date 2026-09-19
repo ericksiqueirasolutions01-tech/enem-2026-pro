@@ -13,6 +13,7 @@ import {
   QrCode,
   Zap,
   Tag,
+  Receipt,
 } from 'lucide-react';
 import { db } from '../../db/storage';
 import { User, CouponValidationResult } from '../../types';
@@ -43,6 +44,11 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
   const [showCouponInput, setShowCouponInput] = useState(true);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
 
+  // Estados para validação manual de comprovante / NSU
+  const [receiptInput, setReceiptInput] = useState('');
+  const [isValidatingReceipt, setIsValidatingReceipt] = useState(false);
+  const [showManualReceiptInput, setShowManualReceiptInput] = useState(false);
+
   useEffect(() => {
     const user = db.getCurrentUser();
     if (user && user.role === 'ADMINISTRADOR' && user.status === 'APROVADO') {
@@ -54,6 +60,8 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
       paymentRepository.verifyAccessEntitlement(user).then((res) => {
         if (res.isEntitled) {
           onNavigate('dashboard');
+        } else {
+          handleCheckStatus();
         }
       });
     }
@@ -131,18 +139,27 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
     }
   };
 
-  const handleCheckStatus = async () => {
+  const handleCheckStatus = async (customParams?: { transactionNsu?: string; receiptUrl?: string; slug?: string }) => {
     setIsChecking(true);
     setCheckedMessage(null);
     setCheckoutError(null);
 
     try {
       const lastOrderId = localStorage.getItem('enem2026_last_order_id') || undefined;
+      const lastTransactionNsu = customParams?.transactionNsu || localStorage.getItem('enem2026_last_transaction_nsu') || undefined;
+      const lastSlug = customParams?.slug || localStorage.getItem('enem2026_last_slug') || undefined;
+      const receiptUrl = customParams?.receiptUrl || undefined;
 
       // 1. Tenta verificar o status ativo do pagamento via API oficial do backend
       let paymentConfirmed = false;
       try {
-        const payStatus = await paymentRepository.checkPaymentStatus(lastOrderId);
+        const payStatus = await paymentRepository.checkPaymentStatus({
+          orderId: lastOrderId,
+          transactionNsu: lastTransactionNsu,
+          slug: lastSlug,
+          receiptUrl,
+          email: currentUser?.email,
+        });
         if (payStatus.isPaid && payStatus.status === 'PAID') {
           paymentConfirmed = true;
         }
@@ -185,6 +202,23 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
       setIsChecking(false);
       setCheckedMessage('Erro ao verificar status. Tente novamente em instantes.');
     }
+  };
+
+  const handleValidateManualReceipt = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const clean = (receiptInput || '').trim();
+    if (!clean) {
+      setCheckedMessage('Informe o código da transação (NSU), slug da fatura ou link do comprovante.');
+      return;
+    }
+
+    setIsValidatingReceipt(true);
+    await handleCheckStatus({
+      transactionNsu: clean.includes('http') ? undefined : clean,
+      slug: clean.includes('http') ? undefined : clean,
+      receiptUrl: clean.includes('http') ? clean : undefined,
+    });
+    setIsValidatingReceipt(false);
   };
 
   const handleLogout = async () => {
@@ -408,13 +442,64 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
 
         {checkedMessage && (
           <div
-            className={`p-3 rounded-2xl text-xs font-bold ${
+            className={`p-4 rounded-2xl text-xs space-y-3 ${
               checkedMessage.includes('Parabéns')
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold'
+                : 'bg-amber-500/10 text-amber-300 border border-amber-500/30 text-left'
             }`}
           >
-            {checkedMessage}
+            <div className="flex items-start gap-2.5">
+              {checkedMessage.includes('Parabéns') ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              )}
+              <div className="flex-1 leading-relaxed font-medium">{checkedMessage}</div>
+            </div>
+
+            {!checkedMessage.includes('Parabéns') && !isRejected && (
+              <div className="pt-2 border-t border-amber-500/20 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => handleCheckStatus()}
+                  disabled={isChecking}
+                  className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  <RotateCw className={`w-3.5 h-3.5 ${isChecking ? 'animate-spin' : ''}`} />
+                  <span>{isChecking ? 'Consultando Adquirente...' : 'Verificar Pagamento Novamente'}</span>
+                </button>
+
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowManualReceiptInput(!showManualReceiptInput)}
+                    className="text-[11px] text-amber-400 hover:text-amber-300 underline font-semibold cursor-pointer"
+                  >
+                    {showManualReceiptInput ? 'Ocultar validação manual' : 'Já pagou? Informar comprovante ou código da transação'}
+                  </button>
+                </div>
+
+                {showManualReceiptInput && (
+                  <form onSubmit={handleValidateManualReceipt} className="space-y-2 pt-1">
+                    <input
+                      type="text"
+                      placeholder="Cole o NSU, slug ou link do comprovante InfinitePay"
+                      value={receiptInput}
+                      onChange={(e) => setReceiptInput(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-900 border border-amber-500/40 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isValidatingReceipt || isChecking}
+                      className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 border border-slate-700"
+                    >
+                      <Receipt className="w-3.5 h-3.5" />
+                      <span>{isValidatingReceipt ? 'Validando Comprovante...' : 'Validar Comprovante'}</span>
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -440,7 +525,7 @@ export const PendingApproval: React.FC<PendingApprovalProps> = ({
         <div className="space-y-2 pt-1">
           {!isRejected && (
             <button
-              onClick={handleCheckStatus}
+              onClick={() => handleCheckStatus()}
               disabled={isChecking}
               className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer border border-slate-700"
             >

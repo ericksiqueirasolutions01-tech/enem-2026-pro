@@ -20,6 +20,17 @@ export const PaymentSuccess: React.FC = () => {
     (typeof window !== 'undefined' ? localStorage.getItem('enem2026_last_order_id') || '' : '');
   const transactionNsu = searchParams.get('transaction_nsu') || searchParams.get('transactionId') || '';
   const slug = searchParams.get('slug') || searchParams.get('invoice_slug') || '';
+  const receiptUrl = searchParams.get('receipt_url') || '';
+
+  if (typeof window !== 'undefined') {
+    try {
+      if (orderId) localStorage.setItem('enem2026_last_order_id', orderId);
+      if (transactionNsu) localStorage.setItem('enem2026_last_transaction_nsu', transactionNsu);
+      if (slug) localStorage.setItem('enem2026_last_slug', slug);
+    } catch {
+      // ignore
+    }
+  }
 
   const [isVerifying, setIsVerifying] = useState(true);
   const [isApproved, setIsApproved] = useState(false);
@@ -61,6 +72,8 @@ export const PaymentSuccess: React.FC = () => {
           orderId: orderId || undefined,
           transactionNsu: transactionNsu || undefined,
           slug: slug || undefined,
+          receiptUrl: receiptUrl || undefined,
+          email: targetUser?.email,
         });
         const entitlement = await paymentRepository.verifyAccessEntitlement(targetUser);
 
