@@ -14,7 +14,8 @@
     "test:bypass": "node scripts/payment-bypass-audit.js",
     "test:onboarding": "node scripts/onboarding-zero-state-audit.js",
     "test:attack": "node scripts/attack-vector-audit.js",
-    "test": "npm run test:security && npm run test:payments && npm run test:bypass && npm run test:onboarding && npm run test:attack && npm run typecheck"
+    "test:coupons": "node scripts/cross-device-coupon-audit.js",
+    "test": "npm run test:security && npm run test:payments && npm run test:bypass && npm run test:onboarding && npm run test:attack && npm run test:coupons && npm run typecheck"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

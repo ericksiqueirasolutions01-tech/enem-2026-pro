@@ -43,17 +43,11 @@ export const paymentRepository = {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const localCoupon = db.getCoupons().find(
-      (c) =>
-        c.code.toUpperCase() === cleanCode ||
-        c.code.replace(/[^A-Z0-9]/g, '').toUpperCase() === cleanCode.replace(/[^A-Z0-9]/g, '')
-    );
-
     try {
       const res = await fetch('/api/coupons/validate', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ code: cleanCode, coupon: localCoupon }),
+        body: JSON.stringify({ code: cleanCode }),
       });
 
       if (res.ok) {
@@ -79,7 +73,7 @@ export const paymentRepository = {
         } else {
           return {
             valid: false,
-            error: data.message || 'Cupom inválido ou expirado.',
+            error: data.message || 'Cupom não encontrado ou inválido.',
             originalPriceCents: 3700,
             discountCents: 0,
             finalPriceCents: 3700,
@@ -99,7 +93,6 @@ export const paymentRepository = {
           action: 'validate',
           code: cleanCode,
           couponCode: cleanCode,
-          coupon: localCoupon,
         }),
       });
 
@@ -123,7 +116,7 @@ export const paymentRepository = {
             discountCents: data.discountCents || 0,
             finalPriceCents: data.amountDueCents,
           };
-        } else if (data.message && data.error !== 'COUPON_NOT_FOUND') {
+        } else if (data.message) {
           return {
             valid: false,
             error: data.message,
@@ -137,17 +130,9 @@ export const paymentRepository = {
       console.warn('[paymentRepository] Fallback via /api/payments/create indisponível:', err2);
     }
 
-    // 3. Fallback para cupons cadastrados pelo administrador no cliente
-    if (localCoupon) {
-      const localResult = db.validateCoupon(cleanCode);
-      if (localResult.valid) {
-        return localResult;
-      }
-    }
-
     return {
       valid: false,
-      error: 'Cupom inválido ou expirado.',
+      error: 'Cupom não encontrado ou indisponível.',
       originalPriceCents: 3700,
       discountCents: 0,
       finalPriceCents: 3700,
@@ -179,14 +164,6 @@ export const paymentRepository = {
       finalPriceCents = 100;
     }
 
-    const localCoupon = couponCode
-      ? db.getCoupons().find(
-          (c) =>
-            c.code.toUpperCase() === couponCode ||
-            c.code.replace(/[^A-Z0-9]/g, '').toUpperCase() === couponCode.replace(/[^A-Z0-9]/g, '')
-        )
-      : undefined;
-
     // Se o cupom for de 100% gratuito (bolsa de estudos)
     if (finalPriceCents === 0 && couponCode) {
       try {
@@ -205,7 +182,6 @@ export const paymentRepository = {
             name: customerName,
             email: customerEmail,
             couponCode,
-            coupon: localCoupon,
             finalPriceCents: 0,
           }),
         });
@@ -254,7 +230,6 @@ export const paymentRepository = {
           email: customerEmail,
           phone: customerPhone,
           couponCode,
-          coupon: localCoupon,
           discountCents: options?.discountCents,
           finalPriceCents,
         }),
@@ -638,13 +613,15 @@ export const paymentRepository = {
   /**
    * Exclui um cupom no banco de dados (Coordenação).
    */
-  async deleteAdminCoupon(id: string): Promise<{ success: boolean; message?: string }> {
+  async deleteAdminCoupon(id: string, code?: string): Promise<{ success: boolean; message?: string }> {
     const token = await getAuthToken();
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     try {
-      const res = await fetch(`/api/coupons/admin?id=${encodeURIComponent(id)}`, {
+      const qs = new URLSearchParams({ id });
+      if (code) qs.set('code', code);
+      const res = await fetch(`/api/coupons/admin?${qs.toString()}`, {
         method: 'DELETE',
         headers,
       });

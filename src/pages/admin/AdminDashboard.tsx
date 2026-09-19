@@ -118,8 +118,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
   const [pendingFilter, setPendingFilter] = useState<'PENDENTES' | 'APROVADOS' | 'REPROVADOS' | 'TODOS'>('PENDENTES');
   const [adminToast, setAdminToast] = useState<string | null>(null);
 
-  // Estados para Gestão de Cupons de Desconto
+  // Estados para Gestão de Cupons de Desconto (GATE 1 a 14)
   const [coupons, setCoupons] = useState<Coupon[]>(() => db.getCoupons());
+  const [unsyncedLegacyCount, setUnsyncedLegacyCount] = useState<number>(0);
+  const [isSyncingLegacy, setIsSyncingLegacy] = useState(false);
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
   const [cCode, setCCode] = useState('');
   const [cDiscountType, setCDiscountType] = useState<CouponDiscountType>('PERCENTAGE');
@@ -159,14 +161,51 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
   };
 
   const loadCoupons = async () => {
+    let currentServerCoupons: Coupon[] = [];
     try {
       const serverCoupons = await paymentRepository.listAdminCoupons();
       if (serverCoupons && serverCoupons.length > 0) {
+        currentServerCoupons = serverCoupons;
         setCoupons(serverCoupons);
-        return;
       }
     } catch {}
-    setCoupons(db.getCoupons());
+
+    // GATE 8: Checar se existem cupons no localStorage deste PC que ainda não estão no servidor
+    const localCoupons = db.getCoupons();
+    const serverCodes = new Set(currentServerCoupons.map((c) => c.code.toUpperCase()));
+    const unsynced = localCoupons.filter((c) => !serverCodes.has(c.code.toUpperCase()));
+    setUnsyncedLegacyCount(unsynced.length);
+    if (currentServerCoupons.length === 0 && localCoupons.length > 0) {
+      setCoupons(localCoupons);
+    }
+  };
+
+  const handleImportLegacyCoupons = async () => {
+    setIsSyncingLegacy(true);
+    try {
+      const localCoupons = db.getCoupons();
+      let importedCount = 0;
+      for (const c of localCoupons) {
+        const res = await paymentRepository.createAdminCoupon({
+          code: c.code,
+          discountType: c.discountType,
+          discountValue: c.discountValue,
+          maxUses: c.maxUses ?? undefined,
+          expiresAt: c.expiresAt ?? undefined,
+        });
+        if (res.success) {
+          importedCount++;
+        }
+      }
+      await loadCoupons();
+      setAdminToast(`GATE 8: ${importedCount} cupom(ns) locais migrados com sucesso para a base central!`);
+      setTimeout(() => setAdminToast(null), 4000);
+    } catch (err: any) {
+      setAdminToast(`Erro na migração de cupons: ${err?.message || 'Falha de conexão'}`);
+      setTimeout(() => setAdminToast(null), 4000);
+    } finally {
+      setIsSyncingLegacy(false);
+    }
   };
 
   useEffect(() => {
@@ -253,7 +292,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
   const handleDeleteCoupon = async (id: string, code: string) => {
     if (window.confirm(`Deseja realmente excluir o cupom "${code}"? Esta ação não pode ser desfeita.`)) {
       try {
-        await paymentRepository.deleteAdminCoupon(id);
+        await paymentRepository.deleteAdminCoupon(id, code);
       } catch (err) {
         console.warn('Erro ao deletar cupom na API:', err);
       }
@@ -2061,20 +2100,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser, onN
               </p>
             </div>
 
-            <button
-              onClick={() => {
-                setCCode('');
-                setCDiscountType('PERCENTAGE');
-                setCDiscountValue(20);
-                setCMaxUses('');
-                setCExpiresAt('');
-                setIsCouponModalOpen(true);
-              }}
-              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black text-sm hover:from-emerald-700 hover:to-teal-700 transition shadow-lg shadow-emerald-600/20 cursor-pointer self-start md:self-auto"
-            >
-              <Ticket className="w-4 h-4" />
-              <span>+ Criar Novo Cupom</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
+              {unsyncedLegacyCount > 0 && (
+                <button
+                  onClick={handleImportLegacyCoupons}
+                  disabled={isSyncingLegacy}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs transition shadow-lg shadow-amber-500/20 cursor-pointer disabled:opacity-50"
+                  title="Detectamos cupons no seu computador que ainda não estão na base central do servidor."
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingLegacy ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingLegacy ? 'Migrando...' : `Importar ${unsyncedLegacyCount} Cupons Locais para o Servidor`}</span>
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setCCode('');
+                  setCDiscountType('PERCENTAGE');
+                  setCDiscountValue(20);
+                  setCMaxUses('');
+                  setCExpiresAt('');
+                  setIsCouponModalOpen(true);
+                }}
+                className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black text-sm hover:from-emerald-700 hover:to-teal-700 transition shadow-lg shadow-emerald-600/20 cursor-pointer"
+              >
+                <Ticket className="w-4 h-4" />
+                <span>+ Criar Novo Cupom</span>
+              </button>
+            </div>
           </div>
 
           {/* KPI Cards */}

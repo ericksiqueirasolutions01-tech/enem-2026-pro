@@ -5,34 +5,13 @@ export const INFINITEPAY_API_URL = 'https://api.checkout.infinitepay.io';
 export const FIXED_PRODUCT_PRICE_CENTS = 3700; // R$ 37,00 fixo e imutável no backend
 export const DEFAULT_HANDLE = 'erick-siqueira-bg2';
 
-export const UNIVERSAL_COUPONS: Record<string, {
-  id: string;
-  code: string;
-  discount_type: 'PERCENTAGE' | 'FIXED';
-  discount_value: number;
-  max_uses?: number | null;
-  used_count?: number;
-  starts_at?: string | null;
-  expires_at?: string | null;
-  active: boolean;
-}> = {
-  'ERICK20': { id: 'cpn-erick20', code: 'ERICK20', discount_type: 'PERCENTAGE', discount_value: 20, active: true },
-  'ERICK': { id: 'cpn-erick', code: 'ERICK', discount_type: 'PERCENTAGE', discount_value: 20, active: true },
-  'ENEM20': { id: 'cpn-enem20', code: 'ENEM20', discount_type: 'PERCENTAGE', discount_value: 20, active: true },
-  'ENEM2026': { id: 'cpn-enem2026', code: 'ENEM2026', discount_type: 'PERCENTAGE', discount_value: 20, active: true },
-  'PROMO10': { id: 'cpn-promo10', code: 'PROMO10', discount_type: 'PERCENTAGE', discount_value: 10, active: true },
-  'PROMO20': { id: 'cpn-promo20', code: 'PROMO20', discount_type: 'PERCENTAGE', discount_value: 20, active: true },
-  'PROMO30': { id: 'cpn-promo30', code: 'PROMO30', discount_type: 'PERCENTAGE', discount_value: 30, active: true },
-  'PROMO50': { id: 'cpn-promo50', code: 'PROMO50', discount_type: 'PERCENTAGE', discount_value: 50, active: true },
-  'BOLSA100': { id: 'cpn-bolsa100', code: 'BOLSA100', discount_type: 'PERCENTAGE', discount_value: 100, active: true },
-  'DESCONTO10': { id: 'cpn-desconto10', code: 'DESCONTO10', discount_type: 'PERCENTAGE', discount_value: 10, active: true },
-  'DESCONTO20': { id: 'cpn-desconto20', code: 'DESCONTO20', discount_type: 'PERCENTAGE', discount_value: 20, active: true },
-  'DESCONTO30': { id: 'cpn-desconto30', code: 'DESCONTO30', discount_type: 'PERCENTAGE', discount_value: 30, active: true },
-  'MEDICINA': { id: 'cpn-medicina', code: 'MEDICINA', discount_type: 'PERCENTAGE', discount_value: 30, active: true },
-  'MEDICINA2026': { id: 'cpn-medicina2026', code: 'MEDICINA2026', discount_type: 'PERCENTAGE', discount_value: 30, active: true },
-  'VIP2026': { id: 'cpn-vip2026', code: 'VIP2026', discount_type: 'PERCENTAGE', discount_value: 30, active: true },
-  'ALUNO2026': { id: 'cpn-aluno2026', code: 'ALUNO2026', discount_type: 'PERCENTAGE', discount_value: 20, active: true },
-};
+import {
+  UNIVERSAL_COUPONS,
+  normalizeCouponCode,
+  getCentralCoupon,
+  validateCouponRules,
+  calculateCouponDiscount,
+} from '../coupons/_shared.ts';
 
 function getOptionalSupabaseAdmin(): SupabaseClient | null {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -107,63 +86,21 @@ export default async function handler(req: any, res: any) {
       if (!rawC || typeof rawC !== 'string' || !rawC.trim()) {
         return res.status(400).json({ valid: false, error: 'COUPON_NOT_FOUND', message: 'Informe o código do cupom.' });
       }
-      const cClean = rawC.trim().toUpperCase();
-      let vCoupon: any = null;
-
-      if (supabase) {
-        const { data } = await supabase.from('coupons').select('*').eq('code', cClean).maybeSingle();
-        vCoupon = data;
-      }
-
-      if (!vCoupon && body.coupon && typeof body.coupon === 'object') {
-        const bCode = (body.coupon.code || '').trim().toUpperCase();
-        if (bCode === cClean) {
-          vCoupon = {
-            id: body.coupon.id || `cpn-${cClean}`,
-            code: cClean,
-            discount_type: body.coupon.discountType === 'FIXED' ? 'FIXED' : 'PERCENTAGE',
-            discount_value: Number(body.coupon.discountValue) || 0,
-            max_uses: body.coupon.maxUses ? Number(body.coupon.maxUses) : null,
-            used_count: Number(body.coupon.usedCount) || 0,
-            starts_at: body.coupon.startsAt || null,
-            expires_at: body.coupon.expiresAt || null,
-            active: body.coupon.active !== false,
-          };
-        }
-      }
-
-      if (!vCoupon && UNIVERSAL_COUPONS[cClean]) {
-        vCoupon = { ...UNIVERSAL_COUPONS[cClean] };
-      }
-
+      const cClean = normalizeCouponCode(rawC);
+      const vCoupon = await getCentralCoupon(cClean, supabase);
       if (!vCoupon) {
         return res.status(200).json({ valid: false, error: 'COUPON_NOT_FOUND', message: 'Cupom inexistente ou inválido.' });
       }
 
-      if (!vCoupon.active) {
-        return res.status(200).json({ valid: false, error: 'COUPON_INACTIVE', message: 'Este cupom foi desativado.' });
+      const ruleCheck = validateCouponRules(vCoupon);
+      if (!ruleCheck.valid) {
+        return res.status(200).json({ valid: false, error: ruleCheck.error, message: ruleCheck.message });
       }
 
-      const now = new Date();
-      if (vCoupon.starts_at && new Date(vCoupon.starts_at) > now) {
-        return res.status(200).json({ valid: false, error: 'COUPON_NOT_STARTED', message: 'Este cupom ainda não é válido.' });
-      }
-      if (vCoupon.expires_at && new Date(vCoupon.expires_at) < now) {
-        return res.status(200).json({ valid: false, error: 'COUPON_EXPIRED', message: 'Este cupom está expirado.' });
-      }
-      if (vCoupon.max_uses && vCoupon.used_count >= vCoupon.max_uses) {
-        return res.status(200).json({ valid: false, error: 'COUPON_LIMIT_REACHED', message: 'Este cupom atingiu o limite máximo de utilizações.' });
-      }
+      const { discountCents, amountDueCents, isFree } = calculateCouponDiscount(vCoupon, FIXED_PRODUCT_PRICE_CENTS);
 
-      let dCents = 0;
-      if (vCoupon.discount_type === 'PERCENTAGE') {
-        const pct = Math.min(100, Math.max(0, vCoupon.discount_value));
-        dCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * pct) / 100);
-      } else {
-        dCents = Math.min(FIXED_PRODUCT_PRICE_CENTS, Math.max(0, vCoupon.discount_value));
-      }
-
-      let dueCents = Math.max(0, FIXED_PRODUCT_PRICE_CENTS - dCents);
+      let dueCents = amountDueCents;
+      let dCents = discountCents;
       if (dueCents > 0 && dueCents < 100) {
         dueCents = 100;
         dCents = FIXED_PRODUCT_PRICE_CENTS - dueCents;
@@ -234,47 +171,8 @@ export default async function handler(req: any, res: any) {
     let validatedCouponRecord: any = null;
 
     if (rawCoupon && typeof rawCoupon === 'string' && rawCoupon.trim()) {
-      const cleanCoupon = rawCoupon.trim().toUpperCase();
-
-      let coupon: any = null;
-
-      if (supabase) {
-        // Validação direta no banco de dados
-        const { data, error: couponErr } = await supabase
-          .from('coupons')
-          .select('*')
-          .eq('code', cleanCoupon)
-          .maybeSingle();
-
-        if (couponErr) {
-          console.error('[Payments] Erro ao consultar cupom no banco:', couponErr);
-          return res.status(500).json({ success: false, message: 'Erro ao validar cupom no servidor.' });
-        }
-        coupon = data;
-      }
-
-      // Se não encontrado no Supabase (ou sem Supabase ativo), aceita metadados passados pelo admin
-      if (!coupon && body.coupon) {
-        const bCoupon = body.coupon;
-        const bCode = (bCoupon.code || '').trim().toUpperCase();
-        if (bCode === cleanCoupon) {
-          coupon = {
-            id: bCoupon.id || `cpn-${cleanCoupon}`,
-            code: cleanCoupon,
-            discount_type: bCoupon.discountType === 'FIXED' ? 'FIXED' : 'PERCENTAGE',
-            discount_value: Number(bCoupon.discountValue) || 0,
-            max_uses: bCoupon.maxUses ? Number(bCoupon.maxUses) : null,
-            used_count: Number(bCoupon.usedCount) || 0,
-            starts_at: bCoupon.startsAt || null,
-            expires_at: bCoupon.expiresAt || null,
-            active: bCoupon.active !== false,
-          };
-        }
-      }
-
-      if (!coupon && UNIVERSAL_COUPONS[cleanCoupon]) {
-        coupon = { ...UNIVERSAL_COUPONS[cleanCoupon] };
-      }
+      const cleanCoupon = normalizeCouponCode(rawCoupon);
+      const coupon = await getCentralCoupon(cleanCoupon, supabase);
 
       if (!coupon) {
         return res.status(400).json({
@@ -284,36 +182,12 @@ export default async function handler(req: any, res: any) {
         });
       }
 
-      if (!coupon.active) {
+      const ruleCheck = validateCouponRules(coupon);
+      if (!ruleCheck.valid) {
         return res.status(400).json({
           success: false,
-          error: 'COUPON_INACTIVE',
-          message: 'Este cupom foi desativado.',
-        });
-      }
-
-      const now = new Date();
-      if (coupon.starts_at && new Date(coupon.starts_at) > now) {
-        return res.status(400).json({
-          success: false,
-          error: 'COUPON_NOT_STARTED',
-          message: 'Este cupom ainda não é válido.',
-        });
-      }
-
-      if (coupon.expires_at && new Date(coupon.expires_at) < now) {
-        return res.status(400).json({
-          success: false,
-          error: 'COUPON_EXPIRED',
-          message: 'Este cupom expirou.',
-        });
-      }
-
-      if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
-        return res.status(400).json({
-          success: false,
-          error: 'COUPON_LIMIT_REACHED',
-          message: 'Este cupom atingiu o limite de utilizações.',
+          error: ruleCheck.error,
+          message: ruleCheck.message,
         });
       }
 
@@ -329,24 +203,20 @@ export default async function handler(req: any, res: any) {
         if (redemption) {
           return res.status(400).json({
             success: false,
-            error: 'COUPON_ALREADY_USED',
+            error: 'COUPON_USER_LIMIT_REACHED',
             message: 'Você já utilizou este cupom anteriormente.',
           });
         }
       }
 
-      // Cálculo de desconto pelo servidor
-      if (coupon.discount_type === 'PERCENTAGE') {
-        const pct = Math.min(100, Math.max(0, coupon.discount_value));
-        appliedDiscountCents = Math.round((FIXED_PRODUCT_PRICE_CENTS * pct) / 100);
-        couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon} - ${pct}% OFF)`;
-      } else {
-        // FIXED
-        appliedDiscountCents = Math.min(FIXED_PRODUCT_PRICE_CENTS, Math.max(0, coupon.discount_value));
-        couponDescription = `ENEM 2026 PRO (Cupom: ${cleanCoupon})`;
-      }
+      // Cálculo de desconto estrito pelo servidor (GATE 10)
+      const calc = calculateCouponDiscount(coupon, FIXED_PRODUCT_PRICE_CENTS);
+      appliedDiscountCents = calc.discountCents;
+      finalAmountCents = calc.amountDueCents;
+      couponDescription = calc.isFree
+        ? `ENEM 2026 PRO (Cupom 100% Gratuito: ${cleanCoupon})`
+        : `ENEM 2026 PRO (Cupom: ${cleanCoupon})`;
 
-      finalAmountCents = Math.max(0, FIXED_PRODUCT_PRICE_CENTS - appliedDiscountCents);
       if (finalAmountCents > 0 && finalAmountCents < 100) {
         finalAmountCents = 100;
         appliedDiscountCents = FIXED_PRODUCT_PRICE_CENTS - finalAmountCents;
